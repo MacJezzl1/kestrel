@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+backend/__pycache__/
+backend/**/__pycache__/
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Production builds & Cache
+frontend/.next/
+frontend/out/
+build/
+dist/
+.turbo/
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+.pytest_cache/
+
+# Local Environment & Secrets
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+
+# Databases & Runtime Uploads
+*.db
+*.sqlite
+*.sqlite3
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/kestrel.db
+uploads/
+
+# IDE & OS
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.idea/
+.vscode/
+*.swp
+*.swo
