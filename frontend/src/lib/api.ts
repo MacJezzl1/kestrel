@@ -3,7 +3,7 @@
  * Centralized HTTP client for all backend API calls.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://backend-macjezzl1s-projects.vercel.app';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface RequestOptions {
   method?: string;

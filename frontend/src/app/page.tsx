@@ -34,11 +34,13 @@ export default function LoginPage() {
         await login(email, password);
       }
       router.push('/dashboard');
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof ApiError) {
         setError(err.message);
+      } else if (err instanceof Error) {
+        setError(err.message || 'Connection failed. Is the Kestrel API running?');
       } else {
-        setError('Connection failed. Is the Kestrel API running?');
+        setError('Connection failed. Please check your internet or retry.');
       }
     } finally {
       setLoading(false);
