@@ -13,6 +13,7 @@ const navItems = [
 ];
 
 const bottomItems = [
+  { href: '/security', label: 'Security', icon: '🔐' },
   { href: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 

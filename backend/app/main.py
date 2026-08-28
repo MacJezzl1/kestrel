@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import init_db, close_db
-from app.routers import auth, signals, trades, dashboard, vision
+from app.routers import auth, signals, trades, dashboard, vision, security
 
 
 @asynccontextmanager
@@ -15,13 +15,13 @@ async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
     # Startup
     await init_db()
-    print(f"🦅 Kestrel {settings.APP_VERSION} — Engine online")
+    print(f"[Kestrel] {settings.APP_VERSION} -- Engine online")
     print(f"   Models loaded: {_get_model_count()} across 5 categories")
     print(f"   Database: {settings.DATABASE_URL}")
     yield
     # Shutdown
     await close_db()
-    print("🦅 Kestrel — Engine offline")
+    print("[Kestrel] -- Engine offline")
 
 
 def _get_model_count():
@@ -42,6 +42,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,6 +54,7 @@ app.include_router(signals.router)
 app.include_router(trades.router)
 app.include_router(dashboard.router)
 app.include_router(vision.router)
+app.include_router(security.router)
 
 
 @app.get("/", tags=["Health"])

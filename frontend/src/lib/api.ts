@@ -82,6 +82,45 @@ class ApiClient {
     return this.request<LicenseInfo>('/api/auth/license');
   }
 
+  // Security
+  async getSessions() {
+    return this.request<SessionInfo[]>('/api/security/sessions');
+  }
+
+  async revokeAllSessions() {
+    return this.request<{ message: string; access_token: string }>('/api/security/sessions/revoke-all', {
+      method: 'POST',
+    });
+  }
+
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ message: string; access_token: string }>('/api/security/change-password', {
+      method: 'POST',
+      body: { current_password: currentPassword, new_password: newPassword },
+    });
+  }
+
+  async createApiKey(name: string, permissions: string[] = ['signals', 'trades']) {
+    return this.request<ApiKeyCreated>('/api/security/api-keys', {
+      method: 'POST',
+      body: { name, permissions },
+    });
+  }
+
+  async listApiKeys() {
+    return this.request<ApiKeyInfo[]>('/api/security/api-keys');
+  }
+
+  async revokeApiKey(keyId: string) {
+    return this.request<{ message: string }>(`/api/security/api-keys/${keyId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAuditLog(limit: number = 50, offset: number = 0) {
+    return this.request<AuditLogEntry[]>(`/api/security/audit-log?limit=${limit}&offset=${offset}`);
+  }
+
   // Dashboard
   async getDashboardSummary() {
     return this.request<DashboardSummary>('/api/dashboard/summary');
@@ -174,6 +213,43 @@ export interface LicenseInfo {
   signals_used_today: number;
   signals_limit: number;
   expires_at: string | null;
+}
+
+// Security types
+export interface SessionInfo {
+  action: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface ApiKeyCreated {
+  id: string;
+  name: string;
+  raw_key: string;
+  key_prefix: string;
+  permissions: string[];
+  created_at: string;
+}
+
+export interface ApiKeyInfo {
+  id: string;
+  name: string;
+  key_prefix: string;
+  permissions: string[];
+  is_active: boolean;
+  last_used_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  details: Record<string, unknown>;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
 }
 
 export interface DashboardSummary {
@@ -296,3 +372,4 @@ export interface VisionAnalysis {
 // Export singleton
 export const api = new ApiClient(API_BASE);
 export default api;
+

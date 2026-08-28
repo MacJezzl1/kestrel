@@ -35,9 +35,19 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
-    """Create all database tables."""
+    """Create all database tables and run lightweight migrations."""
+    from sqlalchemy import text
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # Lightweight migration: add token_version to users if missing
+        try:
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"
+            ))
+        except Exception:
+            pass  # Column already exists
 
 
 async def close_db():

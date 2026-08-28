@@ -1,6 +1,6 @@
 """
-Kestrel Shield — Auth Schemas
-Pydantic models for authentication request/response validation.
+Kestrel Shield — Auth & Security Schemas
+Pydantic models for authentication, security, and API key request/response validation.
 """
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
@@ -42,6 +42,61 @@ class LicenseInfo(BaseModel):
     signals_used_today: int
     signals_limit: int
     expires_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+# --- Security schemas ---
+
+class ChangePassword(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="A label for this API key, e.g. 'MT5 EA'")
+    permissions: list[str] = Field(default=["signals", "trades"], description="Scopes this key can access")
+
+
+class ApiKeyResponse(BaseModel):
+    id: str
+    name: str
+    key_prefix: str
+    permissions: list[str]
+    is_active: bool
+    last_used_at: Optional[datetime]
+    expires_at: Optional[datetime]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ApiKeyCreated(BaseModel):
+    """Returned only once — the full raw key is shown only at creation time."""
+    id: str
+    name: str
+    raw_key: str
+    key_prefix: str
+    permissions: list[str]
+    created_at: datetime
+
+
+class SessionInfo(BaseModel):
+    action: str
+    ip_address: Optional[str]
+    user_agent: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AuditLogEntry(BaseModel):
+    id: str
+    action: str
+    details: dict
+    ip_address: Optional[str]
+    user_agent: Optional[str]
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 

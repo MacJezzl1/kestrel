@@ -24,6 +24,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
+    token_version = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -31,6 +32,7 @@ class User(Base):
     license = relationship("License", back_populates="user", uselist=False)
     trades = relationship("Trade", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")
+    api_keys = relationship("ApiKey", back_populates="user")
 
 
 class License(Base):
@@ -116,3 +118,22 @@ class AuditLog(Base):
 
     # Relationships
     user = relationship("User", back_populates="audit_logs")
+
+
+class ApiKey(Base):
+    """Long-lived API keys for bridge integrations (MT5 EA, TradingView, etc.)."""
+    __tablename__ = "api_keys"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    key_prefix = Column(String(8), nullable=False)  # First 8 chars shown for identification
+    hashed_key = Column(String(255), nullable=False)
+    permissions = Column(JSON, default=lambda: ["signals", "trades"])
+    is_active = Column(Boolean, default=True)
+    last_used_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    user = relationship("User", back_populates="api_keys")

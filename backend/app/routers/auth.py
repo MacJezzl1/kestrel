@@ -41,7 +41,7 @@ async def register(data: UserRegister, request: Request, db: AsyncSession = Depe
                      ip_address=request.client.host if request.client else None)
     
     # Generate token
-    token = create_access_token({"sub": user.id, "email": user.email, "tier": license_obj.tier})
+    token = create_access_token({"sub": user.id, "email": user.email, "tier": license_obj.tier, "tv": user.token_version})
     
     return TokenResponse(
         access_token=token,
@@ -77,7 +77,7 @@ async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(ge
     await log_action(db, "login", user.id, {"email": data.email},
                      ip_address=request.client.host if request.client else None)
     
-    token = create_access_token({"sub": user.id, "email": user.email, "tier": tier})
+    token = create_access_token({"sub": user.id, "email": user.email, "tier": tier, "tv": user.token_version})
     
     return TokenResponse(
         access_token=token,

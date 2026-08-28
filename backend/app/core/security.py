@@ -1,20 +1,21 @@
 """
 Kestrel Shield — Security Utilities
-JWT token management, password hashing, and request authentication.
+JWT token management, password hashing, API key auth, and request authentication.
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
 
-
 import bcrypt
+import secrets
+import hashlib
 
 # Bearer token extraction
-security_scheme = HTTPBearer()
+security_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
@@ -35,7 +36,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a signed JWT access token."""
+    """Create a signed JWT access token with token_version for revocation support."""
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -59,10 +60,47 @@ def decode_access_token(token: str) -> dict:
         )
 
 
+# --- API Key utilities ---
+
+def generate_api_key() -> str:
+    """Generate a random API key string (kestrel_<64-char-hex>)."""
+    return f"kestrel_{secrets.token_hex(32)}"
+
+
+def hash_api_key(raw_key: str) -> str:
+    """Hash an API key using SHA-256 for storage."""
+    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+
+
+def get_api_key_prefix(raw_key: str) -> str:
+    """Get the first 8 characters of the key for display identification."""
+    return raw_key[:8]
+
+
+# --- Unified auth dependency ---
+
 async def get_current_user_id(
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
 ) -> str:
-    """Extract and validate the current user ID from the Bearer token."""
+    """
+    Extract and validate the current user ID.
+    Supports both Bearer JWT tokens and X-API-Key header authentication.
+    Also validates token_version to support session revocation.
+    """
+    # Try X-API-Key header first (for MT5 EA / bridge integrations)
+    api_key_header = request.headers.get("X-API-Key")
+    if api_key_header:
+        return await _authenticate_api_key(api_key_header)
+
+    # Fall back to Bearer token
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Provide a Bearer token or X-API-Key header.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     payload = decode_access_token(credentials.credentials)
     user_id = payload.get("sub")
     if user_id is None:
@@ -70,4 +108,58 @@ async def get_current_user_id(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token missing user identifier",
         )
+
+    # Validate token_version (lazy import to avoid circular)
+    token_version = payload.get("tv")
+    if token_version is not None:
+        from app.db.database import async_session
+        from app.models.models import User
+        from sqlalchemy import select
+
+        async with async_session() as db:
+            result = await db.execute(select(User.token_version).where(User.id == user_id))
+            current_version = result.scalar_one_or_none()
+            if current_version is not None and token_version < current_version:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token has been revoked. Please log in again.",
+                )
+
     return user_id
+
+
+async def _authenticate_api_key(raw_key: str) -> str:
+    """Validate an API key and return the associated user ID."""
+    from app.db.database import async_session
+    from app.models.models import ApiKey
+    from sqlalchemy import select
+
+    hashed = hash_api_key(raw_key)
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(ApiKey).where(
+                ApiKey.hashed_key == hashed,
+                ApiKey.is_active == True,
+            )
+        )
+        api_key_obj = result.scalar_one_or_none()
+
+        if not api_key_obj:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or revoked API key",
+            )
+
+        # Check expiry
+        if api_key_obj.expires_at and api_key_obj.expires_at < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="API key has expired",
+            )
+
+        # Update last_used_at
+        api_key_obj.last_used_at = datetime.now(timezone.utc)
+        await db.commit()
+
+        return api_key_obj.user_id
