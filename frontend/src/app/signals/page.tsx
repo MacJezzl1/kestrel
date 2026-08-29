@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { api, Signal } from '@/lib/api';
+import { formatLocalDateTime, formatRelativeTime } from '@/lib/time';
 
-const INSTRUMENTS = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'XAUUSD', 'NAS100', 'US30', 'BTCUSD'];
-const TIMEFRAMES = ['M5', 'M15', 'M30', 'H1', 'H4', 'D1'];
+const INSTRUMENTS = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'XAUUSD', 'Volatility 100 Index', 'Crash 1000', 'Boom 500', 'NAS100', 'US30', 'BTCUSD', 'ETHUSD', 'SOLUSD'];
+const TIMEFRAMES = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1'];
 
 function formatModelName(name: string): string {
   return name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');

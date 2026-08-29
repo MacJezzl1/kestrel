@@ -172,17 +172,38 @@ EXCEPTION
         NULL;
 END $$;
 
+-- 8. CRYPTO PAYMENTS & CHECKOUT TABLE
+CREATE TABLE IF NOT EXISTS payments (
+    id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) REFERENCES users(id) ON DELETE CASCADE,
+    email VARCHAR(255),
+    tier VARCHAR(32) NOT NULL DEFAULT 'enterprise',
+    amount_usd NUMERIC(10, 2) NOT NULL,
+    crypto_currency VARCHAR(16) NOT NULL DEFAULT 'USDT',
+    network VARCHAR(32) NOT NULL DEFAULT 'TRC20',
+    destination_wallet VARCHAR(255) NOT NULL,
+    tx_hash VARCHAR(255),
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    license_key_issued VARCHAR(128),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    confirmed_at TIMESTAMP WITH TIME ZONE
+);
+
 -- ====================================================================
 -- ROW LEVEL SECURITY (RLS)
 -- ====================================================================
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 
 -- Allow read/write access via API keys
 CREATE POLICY "Allow full access to users" ON users
     FOR ALL USING (true);
 
 CREATE POLICY "Allow full access to licenses" ON licenses
+    FOR ALL USING (true);
+
+CREATE POLICY "Allow full access to payments" ON payments
     FOR ALL USING (true);
 
 CREATE POLICY "Allow full access to active models" ON ai_models

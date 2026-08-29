@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import init_db, close_db
-from app.routers import auth, signals, trades, dashboard, vision, security
+from app.routers import auth, signals, trades, dashboard, vision, security, payments
 
 
 @asynccontextmanager
@@ -55,6 +55,7 @@ app.include_router(trades.router)
 app.include_router(dashboard.router)
 app.include_router(vision.router)
 app.include_router(security.router)
+app.include_router(payments.router)
 
 
 @app.get("/", tags=["Health"])
