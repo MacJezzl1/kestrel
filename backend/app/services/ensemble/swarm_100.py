@@ -208,21 +208,32 @@ class Swarm100Engine:
         if direction == SIGNAL_HOLD:
             normalized_conf = 0.45
             
-        # Price levels (mock reference based on standard instruments)
-        base_price = 160.06 if "JPY" in instrument.upper() else (1.0850 if "EUR" in instrument.upper() else (2350.0 if "XAU" in instrument.upper() else 1.2500))
-        sl_pip_distance = 0.25 if "JPY" in instrument.upper() else (0.0030 if "EUR" in instrument.upper() else 12.0)
-        tp_pip_distance = sl_pip_distance * 2.2 # 1:2.2 Risk-Reward ratio
+        # Dynamic Price Levels matching Deriv & Global Market Specifications
+        from app.routers.market import ASSET_CONFIGS
+        
+        cfg = ASSET_CONFIGS.get(instrument, None)
+        if not cfg:
+            # Fallback search by key substring
+            matching_key = next((k for k in ASSET_CONFIGS if k.lower() in instrument.lower() or instrument.lower() in k.lower()), "Volatility 100 Index")
+            cfg = ASSET_CONFIGS.get(matching_key, {"base": 596.50, "volatility": 2.80, "digits": 2})
+            
+        base_price = cfg["base"]
+        vol = cfg["volatility"]
+        digits = cfg["digits"]
+        
+        sl_pip_distance = vol * 1.8
+        tp_pip_distance = vol * 4.2  # 1:2.33+ Risk-Reward ratio
         
         if direction == SIGNAL_BUY:
-            entry_price = base_price
-            stop_loss = round(base_price - sl_pip_distance, 5 if "EUR" in instrument.upper() else 3)
-            take_profit = round(base_price + tp_pip_distance, 5 if "EUR" in instrument.upper() else 3)
+            entry_price = round(base_price, digits)
+            stop_loss = round(base_price - sl_pip_distance, digits)
+            take_profit = round(base_price + tp_pip_distance, digits)
         elif direction == SIGNAL_SELL:
-            entry_price = base_price
-            stop_loss = round(base_price + sl_pip_distance, 5 if "EUR" in instrument.upper() else 3)
-            take_profit = round(base_price - tp_pip_distance, 5 if "EUR" in instrument.upper() else 3)
+            entry_price = round(base_price, digits)
+            stop_loss = round(base_price + sl_pip_distance, digits)
+            take_profit = round(base_price - tp_pip_distance, digits)
         else:
-            entry_price = base_price
+            entry_price = round(base_price, digits)
             stop_loss = None
             take_profit = None
             
