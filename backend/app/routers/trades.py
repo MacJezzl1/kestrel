@@ -191,3 +191,45 @@ async def get_trade_stats(
         worst_trade=round(min(pnls), 2),
         avg_confidence=round(sum(confidences) / len(confidences), 3) if confidences else 0.0,
     )
+
+
+@router.post("/web-push")
+async def push_remote_trade(
+    payload: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Push a trade or action command from the Web Dashboard directly to MT5 EA.
+    """
+    from app.db.supabase_client import supabase_client
+    action = payload.get("action", "BUY").upper()
+    instrument = payload.get("instrument", "Volatility 100 Index")
+    lot_size = float(payload.get("lot_size", 0.20))
+    sl = float(payload.get("sl", 0.0))
+    tp = float(payload.get("tp", 0.0))
+    
+    cmd_data = {
+        "action": action,
+        "instrument": instrument,
+        "lot_size": lot_size,
+        "sl": sl,
+        "tp": tp,
+        "user_id": user_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await supabase_client.push_remote_command(cmd_data)
+    
+    return {
+        "status": "queued",
+        "message": f"Command '{action}' for {instrument} pushed to MT5 Broker Bridge.",
+        "command": cmd_data
+    }
+
+
+@router.get("/pending-commands")
+async def get_pending_commands():
+    """Polled by MT5 EA to execute remote trade orders."""
+    from app.db.supabase_client import supabase_client
+    return await supabase_client.get_pending_commands()
+

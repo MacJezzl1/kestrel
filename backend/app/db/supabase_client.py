@@ -171,24 +171,98 @@ class SupabaseClient:
             logger.error("❌ Supabase get_user_by_email error: %s", str(e))
         return None
 
-    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch user by ID from Supabase."""
+    async def get_latest_account(self) -> Optional[Dict[str, Any]]:
+        """Fetch the most recent MT5 account snapshot from Supabase."""
         if not self.is_configured:
             return None
             
         try:
             async with httpx.AsyncClient(timeout=6.0) as client:
                 res = await client.get(
-                    f"{self.rest_url}/users",
+                    f"{self.rest_url}/accounts",
                     headers=self._get_headers(),
-                    params={"id": f"eq.{user_id}", "limit": "1"}
+                    params={"select": "*", "order": "updated_at.desc", "limit": "1"}
                 )
                 if res.status_code == 200:
-                    users = res.json()
-                    return users[0] if users else None
+                    accs = res.json()
+                    return accs[0] if accs else None
         except Exception as e:
-            logger.error("❌ Supabase get_user_by_id error: %s", str(e))
+            logger.error("❌ Supabase get_latest_account error: %s", str(e))
         return None
+
+    async def get_all_trades(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Fetch trade executions from Supabase 'trades' table."""
+        if not self.is_configured:
+            return []
+            
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                res = await client.get(
+                    f"{self.rest_url}/trades",
+                    headers=self._get_headers(),
+                    params={"select": "*", "order": "created_at.desc", "limit": str(limit)}
+                )
+                if res.status_code == 200:
+                    return res.json()
+        except Exception as e:
+            logger.error("❌ Supabase get_all_trades error: %s", str(e))
+        return []
+
+    async def push_remote_command(self, command_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Push a remote trade command to Supabase system_logs/command queue."""
+        if not self.is_configured:
+            return None
+            
+        try:
+            log_record = {
+                "log_type": "REMOTE_COMMAND",
+                "severity": "CRITICAL",
+                "source": "WEB_DASHBOARD",
+                "message": f"COMMAND: {command_data.get('action')} {command_data.get('instrument')}",
+                "metadata": {
+                    "action": command_data.get("action"),
+                    "instrument": command_data.get("instrument"),
+                    "lot_size": command_data.get("lot_size", 0.20),
+                    "sl": command_data.get("sl", 0.0),
+                    "tp": command_data.get("tp", 0.0),
+                    "status": "PENDING",
+                    "created_at": command_data.get("created_at")
+                }
+            }
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                res = await client.post(
+                    f"{self.rest_url}/system_logs",
+                    headers=self._get_headers(),
+                    json=log_record
+                )
+                if res.status_code in (200, 201):
+                    return res.json()
+        except Exception as e:
+            logger.error("❌ Supabase push_remote_command error: %s", str(e))
+        return None
+
+    async def get_pending_commands(self) -> List[Dict[str, Any]]:
+        """Fetch pending web commands for MT5 EA."""
+        if not self.is_configured:
+            return []
+            
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                res = await client.get(
+                    f"{self.rest_url}/system_logs",
+                    headers=self._get_headers(),
+                    params={
+                        "log_type": "eq.REMOTE_COMMAND",
+                        "order": "created_at.desc",
+                        "limit": "5"
+                    }
+                )
+                if res.status_code == 200:
+                    return res.json()
+        except Exception as e:
+            logger.error("❌ Supabase get_pending_commands error: %s", str(e))
+        return []
 
 
 supabase_client = SupabaseClient()
+

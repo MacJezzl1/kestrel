@@ -111,6 +111,13 @@ class DashboardSummary(BaseModel):
     current_regime: str
     active_models: List[str]
     connection_status: str
+    live_balance: Optional[float] = 0.0
+    live_equity: Optional[float] = 0.0
+    account_number: Optional[str] = "MT5-Offline"
+    broker_name: Optional[str] = "MetaTrader 5"
+    recovery_level: Optional[str] = "OPTIMAL"
+    recovery_multiplier: Optional[float] = 1.0
+    auto_trade_enabled: Optional[bool] = True
 
 
 class DrawdownInfo(BaseModel):

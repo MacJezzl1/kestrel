@@ -171,6 +171,11 @@ void OnTimer()
       SyncAccountToSupabase();
    }
 
+   if(g_animFrame % 3 == 0)
+   {
+      PollRemoteWebCommands();
+   }
+
    if(UseTrailingStop)
    {
       ManageTrailingStops();
@@ -725,6 +730,60 @@ void ReportTradeToSupabase(string direction, double price, double lots, double s
    string result_headers;
    ResetLastError();
    WebRequest("POST", url, headers, NULL, 4000, post_data, ArraySize(post_data), result, result_headers);
+}
+
+//+------------------------------------------------------------------+
+//| Poll Remote Web Commands from Website & Supabase                  |
+//+------------------------------------------------------------------+
+datetime g_lastExecutedCommandTime = 0;
+
+void PollRemoteWebCommands()
+{
+   if(StringLen(SupabaseUrl) == 0 || StringLen(SupabaseApiKey) == 0) return;
+
+   string url = SupabaseUrl + "/rest/v1/system_logs?log_type=eq.REMOTE_COMMAND&order=created_at.desc&limit=1";
+   string headers = "apikey: " + SupabaseApiKey + "\r\n"
+                  + "Authorization: Bearer " + SupabaseApiKey + "\r\n";
+
+   char post_data[], result[];
+   string result_headers;
+   ResetLastError();
+   int res = WebRequest("GET", url, headers, NULL, 3000, post_data, 0, result, result_headers);
+   if(res == 200 && ArraySize(result) > 0)
+   {
+      string responseStr = CharArrayToString(result);
+      if(StringFind(responseStr, "COMMAND: BUY") >= 0)
+      {
+         // Extract and ensure only executed once
+         if(TimeCurrent() - g_lastExecutedCommandTime > 8)
+         {
+            g_lastExecutedCommandTime = TimeCurrent();
+            Print("⚡ [WEB COMMAND RECEIVED]: Instant BUY order triggered from Website Dashboard!");
+            ExecuteAutonomousTrade("BUY");
+            Render3DHUD();
+         }
+      }
+      else if(StringFind(responseStr, "COMMAND: SELL") >= 0)
+      {
+         if(TimeCurrent() - g_lastExecutedCommandTime > 8)
+         {
+            g_lastExecutedCommandTime = TimeCurrent();
+            Print("⚡ [WEB COMMAND RECEIVED]: Instant SELL order triggered from Website Dashboard!");
+            ExecuteAutonomousTrade("SELL");
+            Render3DHUD();
+         }
+      }
+      else if(StringFind(responseStr, "COMMAND: CLOSE_ALL") >= 0)
+      {
+         if(TimeCurrent() - g_lastExecutedCommandTime > 8)
+         {
+            g_lastExecutedCommandTime = TimeCurrent();
+            Print("🛡️ [WEB COMMAND RECEIVED]: Emergency CLOSE ALL triggered from Website Dashboard!");
+            CloseAllSymbolPositions();
+            Render3DHUD();
+         }
+      }
+   }
 }
 
 //+------------------------------------------------------------------+

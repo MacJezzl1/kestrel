@@ -168,6 +168,13 @@ class ApiClient {
     return this.request<TradeStats>('/api/trades/stats');
   }
 
+  async pushWebTrade(data: { action: string; instrument: string; lot_size: number; sl?: number; tp?: number }) {
+    return this.request<{ status: string; message: string }>('/api/trades/web-push', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
   // Vision
   async analyzeChart(file: File) {
     const formData = new FormData();
@@ -264,6 +271,13 @@ export interface DashboardSummary {
   current_regime: string;
   active_models: string[];
   connection_status: string;
+  live_balance?: number;
+  live_equity?: number;
+  account_number?: string;
+  broker_name?: string;
+  recovery_level?: string;
+  recovery_multiplier?: number;
+  auto_trade_enabled?: boolean;
 }
 
 export interface DrawdownInfo {
