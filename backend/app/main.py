@@ -59,6 +59,7 @@ app.include_router(payments.router)
 
 
 @app.get("/", tags=["Health"])
+@app.get("/api/health", tags=["Health"])
 async def health_check():
     """Health check endpoint."""
     return {

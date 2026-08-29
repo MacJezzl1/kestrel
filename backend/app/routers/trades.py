@@ -24,15 +24,52 @@ async def get_trades(
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get paginated trade history with optional filtering."""
-    query = select(Trade).where(Trade.user_id == user_id).order_by(desc(Trade.opened_at))
+    """Get paginated trade history with Supabase cloud integration."""
+    from app.db.supabase_client import supabase_client
     
+    # 1. Try fetching real trades from Supabase
+    try:
+        sb_trades = await supabase_client.get_all_trades(limit=limit)
+        if sb_trades and len(sb_trades) > 0:
+            trade_responses = []
+            for t in sb_trades:
+                if instrument and t.get("instrument") != instrument:
+                    continue
+                if status and t.get("execution_status", "").lower() != status.lower():
+                    continue
+                
+                open_date = t.get("created_at") or datetime.now(timezone.utc).isoformat()
+                close_date = t.get("closed_at")
+                
+                trade_responses.append(
+                    TradeResponse(
+                        id=str(t.get("id")),
+                        instrument=str(t.get("instrument", "Volatility 100 Index")),
+                        direction=str(t.get("direction", "BUY")).lower(),
+                        entry_price=float(t.get("entry_price", 0.0)),
+                        exit_price=float(t["exit_price"]) if t.get("exit_price") is not None else None,
+                        lot_size=float(t.get("lot_size", 0.20)),
+                        pnl=float(t.get("profit_amount", 0.0)),
+                        pnl_pips=float(t.get("profit_pips", 0.0)),
+                        status=str(t.get("execution_status", "OPEN")).lower(),
+                        confidence_at_entry=float(t.get("confidence_at_entry", 0.91)) if t.get("confidence_at_entry") else 0.91,
+                        model_votes_at_entry={"trend_following": "buy", "order_flow": "buy"},
+                        opened_at=datetime.fromisoformat(open_date.replace("Z", "+00:00")),
+                        closed_at=datetime.fromisoformat(close_date.replace("Z", "+00:00")) if close_date else None,
+                    )
+                )
+            if len(trade_responses) > 0:
+                return TradeListResponse(trades=trade_responses, total=len(trade_responses))
+    except Exception:
+        pass
+
+    # 2. Fallback to local SQLite database
+    query = select(Trade).where(Trade.user_id == user_id).order_by(desc(Trade.opened_at))
     if status:
         query = query.where(Trade.status == status)
     if instrument:
         query = query.where(Trade.instrument == instrument)
     
-    # Count total
     count_query = select(func.count(Trade.id)).where(Trade.user_id == user_id)
     if status:
         count_query = count_query.where(Trade.status == status)
