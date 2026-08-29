@@ -96,7 +96,7 @@ PRICING_PLANS = {
     },
     "lifetime": {
         "name": "Kestrel Lifetime VIP License",
-        "price_usd": 499.00,
+        "price_usd": 1600.00,
         "billing": "One-Time (Lifetime Access)",
         "signals_limit": 999999,
         "features": [

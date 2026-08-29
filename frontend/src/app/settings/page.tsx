@@ -121,7 +121,7 @@ export default function SettingsPage() {
             {[
               { tier: 'pro', name: 'Pro Tier', price: '$49/mo', desc: '100-AI Swarm, MT5 Bridge & ATR Risk Guard' },
               { tier: 'enterprise', name: 'Enterprise VIP', price: '$149/mo', desc: 'Unlimited Signals, Computer Vision Scanner, Priority GPU' },
-              { tier: 'lifetime', name: 'Lifetime VIP', price: '$499 once', desc: 'Permanent Enterprise License Forever' },
+              { tier: 'lifetime', name: 'Lifetime VIP', price: '$1,600 once', desc: 'Permanent Enterprise License Forever' },
             ].map(plan => (
               <div key={plan.tier} style={{
                 padding: '12px 14px',

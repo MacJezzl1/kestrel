@@ -52,7 +52,7 @@ const VAULTS: Record<string, { name: string; symbol: string; network: string; ad
 const PLANS = {
   pro: { name: 'Kestrel Pro Tier', price: 49, desc: 'Full 100-AI Swarm, MT5 Bridge & ATR Risk Guard' },
   enterprise: { name: 'Kestrel Enterprise (VIP)', price: 149, desc: 'Unlimited AI Signals, Computer Vision Scanner & Owner Privileges' },
-  lifetime: { name: 'Kestrel Lifetime VIP', price: 499, desc: 'Permanent Unlimited Enterprise Access Forever' },
+  lifetime: { name: 'Kestrel Lifetime VIP', price: 1600, desc: 'Permanent Unlimited Enterprise Access Forever' },
 };
 
 export default function CryptoPaymentModal({ isOpen, onClose, defaultTier = 'enterprise', onSuccess }: CryptoPaymentModalProps) {
