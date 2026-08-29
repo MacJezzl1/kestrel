@@ -19,6 +19,7 @@ input string   KestrelAPIUrl     = "https://backend-p4hdmaqm1-macjezzl1s-project
 input string   KestrelAPIToken   = "kestrel-pro-license-jwt";          // JWT Access Token / License Key
 input string   AdapterSecret     = "mt5-adapter-secret-change-me";     // Bridge Adapter Secret
 input string   SupabaseUrl       = "https://fuzhwfvixsiyjwokigkp.supabase.co"; // Supabase Project URL
+input string   SupabaseApiKey    = "sb_publishable_ud50Y_R0JCHKAg8Uo3KxqA_-InEzdlt"; // Supabase API Publishable Key
 
 input group "=== Autonomous Execution Settings ==="
 input bool     AutoTrade         = true;                               // Autonomous Auto-Execution
@@ -87,10 +88,13 @@ int OnInit()
    // 4. Calculate initial account financials
    CalculateAccountMetrics();
 
-   // 5. Test connection to Kestrel Core
+   // 5. Sync Account Initial State to Supabase
+   SyncAccountToSupabase();
+
+   // 6. Test connection to Kestrel Core
    TestConnection();
 
-   // 6. Draw HUD Initial Frame
+   // 7. Draw HUD Initial Frame
    if(ShowAdvancedHUD)
    {
       RenderHUD();
@@ -121,6 +125,12 @@ void OnTimer()
    if(TimeCurrent() - g_lastPollTime >= PollIntervalSec)
    {
       RequestSwarmSignal();
+   }
+
+   // Periodic account metrics sync to Supabase Cloud every 10 seconds
+   if(g_animFrame % 10 == 0)
+   {
+      SyncAccountToSupabase();
    }
 
    // Periodic metrics recalculation & HUD animation refresh
@@ -411,7 +421,84 @@ void ExecuteAutonomousTrade(string direction, double sl, double tp)
    if(OrderSend(request, result))
    {
       Print("✅ [AUTONOMOUS TRADE EXECUTED]: ", direction, " ", calculatedLot, " lots @ ", DoubleToString(request.price, 5));
+      // Report Trade directly to Supabase
+      ReportTradeToSupabase(direction, request.price, calculatedLot, sl, tp, result.deal);
+      // Immediately sync updated account stats
+      SyncAccountToSupabase();
    }
+}
+
+//+------------------------------------------------------------------+
+//| Sync Account Financials & Recovery Level to Supabase Cloud        |
+//+------------------------------------------------------------------+
+void SyncAccountToSupabase()
+{
+   if(StringLen(SupabaseUrl) == 0 || StringLen(SupabaseApiKey) == 0) return;
+   
+   string url = SupabaseUrl + "/rest/v1/accounts";
+   string headers = "apikey: " + SupabaseApiKey + "\r\n"
+                  + "Authorization: Bearer " + SupabaseApiKey + "\r\n"
+                  + "Content-Type: application/json\r\n"
+                  + "Prefer: resolution=merge-duplicates\r\n";
+                  
+   string accNum = IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
+   string broker = AccountInfoString(ACCOUNT_COMPANY);
+   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   string curr = AccountInfoString(ACCOUNT_CURRENCY);
+   
+   string json = "{\"account_number\":\"" + accNum + "\","
+                + "\"broker_name\":\"" + broker + "\","
+                + "\"license_key\":\"" + KestrelAPIToken + "\","
+                + "\"balance\":" + DoubleToString(balance, 2) + ","
+                + "\"equity\":" + DoubleToString(equity, 2) + ","
+                + "\"currency\":\"" + curr + "\","
+                + "\"total_profit\":" + DoubleToString(g_totalProfit, 2) + ","
+                + "\"today_profit\":" + DoubleToString(g_todayProfit, 2) + ","
+                + "\"current_drawdown_pct\":" + DoubleToString(g_currentDrawdown, 2) + ","
+                + "\"recovery_level\":\"" + g_recoveryLevel + "\","
+                + "\"recovery_multiplier\":" + DoubleToString(g_recoveryMult, 2) + ","
+                + "\"auto_trade_enabled\":" + (AutoTrade ? "true" : "false") + "}";
+                
+   char post_data[], result[];
+   StringToCharArray(json, post_data, 0, StringLen(json));
+   string result_headers;
+   
+   ResetLastError();
+   WebRequest("POST", url, headers, NULL, 4000, post_data, ArraySize(post_data), result, result_headers);
+}
+
+//+------------------------------------------------------------------+
+//| Report Trade Directly to Supabase 'trades' Table                 |
+//+------------------------------------------------------------------+
+void ReportTradeToSupabase(string direction, double price, double lots, double sl, double tp, ulong ticket)
+{
+   if(StringLen(SupabaseUrl) == 0 || StringLen(SupabaseApiKey) == 0) return;
+   
+   string url = SupabaseUrl + "/rest/v1/trades";
+   string headers = "apikey: " + SupabaseApiKey + "\r\n"
+                  + "Authorization: Bearer " + SupabaseApiKey + "\r\n"
+                  + "Content-Type: application/json\r\n";
+                  
+   string json = "{\"instrument\":\"" + GetInstrument() + "\","
+                + "\"timeframe\":\"" + GetTimeframe() + "\","
+                + "\"direction\":\"" + StringToUpper(direction) + "\","
+                + "\"lot_size\":" + DoubleToString(lots, 2) + ","
+                + "\"entry_price\":" + DoubleToString(price, 5) + ","
+                + "\"stop_loss\":" + DoubleToString(sl, 5) + ","
+                + "\"take_profit\":" + DoubleToString(tp, 5) + ","
+                + "\"mt5_ticket\":" + IntegerToString((long)ticket) + ","
+                + "\"confidence_at_entry\":" + DoubleToString(g_lastConfidence, 3) + ","
+                + "\"swarm_consensus_pct\":" + DoubleToString(g_consensusPct, 1) + ","
+                + "\"market_regime\":\"" + g_lastRegime + "\","
+                + "\"execution_status\":\"OPEN\"}";
+                
+   char post_data[], result[];
+   StringToCharArray(json, post_data, 0, StringLen(json));
+   string result_headers;
+   
+   ResetLastError();
+   WebRequest("POST", url, headers, NULL, 4000, post_data, ArraySize(post_data), result, result_headers);
 }
 
 //+------------------------------------------------------------------+

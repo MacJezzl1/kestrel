@@ -47,8 +47,8 @@ class Settings(BaseSettings):
     
     # Supabase Cloud Database Integration
     SUPABASE_URL: Optional[str] = os.getenv("SUPABASE_URL", "https://fuzhwfvixsiyjwokigkp.supabase.co")
-    SUPABASE_KEY: Optional[str] = os.getenv("SUPABASE_KEY", "")
-    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    SUPABASE_KEY: Optional[str] = os.getenv("SUPABASE_KEY", "sb_publishable_ud50Y_R0JCHKAg8Uo3KxqA_-InEzdlt")
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "sb_publishable_ud50Y_R0JCHKAg8Uo3KxqA_-InEzdlt")
     
     # Swarm Settings
     AI_SWARM_MODELS_COUNT: int = 100
