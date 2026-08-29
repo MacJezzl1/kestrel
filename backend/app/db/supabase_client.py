@@ -171,21 +171,39 @@ class SupabaseClient:
             logger.error("❌ Supabase get_user_by_email error: %s", str(e))
         return None
 
-    async def get_latest_account(self) -> Optional[Dict[str, Any]]:
-        """Fetch the most recent MT5 account snapshot from Supabase."""
+    async def get_latest_account(self, license_key: Optional[str] = None, user_email: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Fetch the MT5 account snapshot for the specific user from Supabase."""
         if not self.is_configured:
             return None
             
         try:
+            params = {"select": "*", "order": "updated_at.desc", "limit": "1"}
+            if license_key and license_key != "kestrel-enterprise-owner-vip":
+                params["license_key"] = f"eq.{license_key}"
+            elif user_email and "mcjezz" not in user_email.lower():
+                params["license_key"] = f"eq.user-{user_email}"
+
             async with httpx.AsyncClient(timeout=6.0) as client:
                 res = await client.get(
                     f"{self.rest_url}/accounts",
                     headers=self._get_headers(),
-                    params={"select": "*", "order": "updated_at.desc", "limit": "1"}
+                    params=params
                 )
                 if res.status_code == 200:
                     accs = res.json()
-                    return accs[0] if accs else None
+                    if accs:
+                        return accs[0]
+                    # If not found and not owner, return None so user sees clean prompt
+                    if user_email and "mcjezz" not in user_email.lower():
+                        return None
+                    # If owner, fetch master
+                    master_res = await client.get(
+                        f"{self.rest_url}/accounts",
+                        headers=self._get_headers(),
+                        params={"account_number": "eq.41230754", "limit": "1"}
+                    )
+                    if master_res.status_code == 200 and master_res.json():
+                        return master_res.json()[0]
         except Exception as e:
             logger.error("❌ Supabase get_latest_account error: %s", str(e))
         return None

@@ -50,10 +50,15 @@ async def get_dashboard_summary(
     latest_signal = latest_signal_result.scalar_one_or_none()
     current_regime = latest_signal.regime if latest_signal else "High Volatility Breakout"
     
-    # Fetch live MT5 connected account from Supabase
+    # Fetch live MT5 connected account from Supabase scoped to this user
+    user_res = await db.execute(select(User).where(User.id == user_id))
+    user_obj = user_res.scalar_one_or_none()
+    user_email = user_obj.email if user_obj else ""
+    is_owner = "mcjezz" in user_email.lower()
+
     live_bal = 0.0
     live_eq = 0.0
-    acc_num = "MT5 Connected"
+    acc_num = "No MT5 Linked"
     broker = "MetaTrader 5"
     rec_lvl = "OPTIMAL"
     rec_mult = 1.0
@@ -61,7 +66,10 @@ async def get_dashboard_summary(
     
     try:
         from app.db.supabase_client import supabase_client
-        sb_acc = await supabase_client.get_latest_account()
+        sb_acc = await supabase_client.get_latest_account(
+            license_key="kestrel-enterprise-owner-vip" if is_owner else f"user-{user_email}",
+            user_email=user_email
+        )
         if sb_acc:
             live_bal = float(sb_acc.get("balance", 0.0))
             live_eq = float(sb_acc.get("equity", 0.0))

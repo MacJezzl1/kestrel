@@ -119,8 +119,9 @@ export default function DashboardPage() {
     }
   };
 
-  const balance = summary.live_balance || 10450.25;
-  const equity = summary.live_equity || (balance + (summary.today_pnl || 0));
+  const hasLinkedAccount = summary.account_number && summary.account_number !== 'No MT5 Linked';
+  const balance = summary.live_balance || 0.0;
+  const equity = summary.live_equity || balance;
   const floatingPnl = equity - balance;
 
   return (
@@ -129,7 +130,7 @@ export default function DashboardPage() {
       <div className="card" style={{
         marginBottom: 20,
         background: 'linear-gradient(135deg, rgba(14, 20, 35, 0.95) 0%, rgba(8, 12, 22, 0.95) 100%)',
-        border: '1px solid var(--border-primary)',
+        border: hasLinkedAccount ? '1px solid var(--border-primary)' : '1px dashed var(--accent-cyan)',
         padding: '16px 20px',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
@@ -137,10 +138,14 @@ export default function DashboardPage() {
             <span style={{ fontSize: 26 }}>⚡</span>
             <div>
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>
-                {summary.broker_name || 'Deriv MT5'} Live Account
+                {hasLinkedAccount ? `${summary.broker_name || 'Deriv'} Live Account` : 'MT5 Broker Account Setup'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>
-                Account: {summary.account_number || 'MT5 #773571'} • Status: <strong style={{ color: 'var(--success)' }}>CONNECTED</strong>
+                {hasLinkedAccount ? (
+                  <>Account: <strong>#{summary.account_number}</strong> • Status: <strong style={{ color: 'var(--success)' }}>CONNECTED</strong></>
+                ) : (
+                  <>Status: <strong style={{ color: 'var(--warning)' }}>No MT5 Account Linked Yet</strong> — <a href="/settings" style={{ color: 'var(--accent-cyan)', textDecoration: 'underline' }}>Connect in Settings →</a></>
+                )}
               </div>
             </div>
           </div>
@@ -148,7 +153,7 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="badge badge-online">
               <span className="pulse-dot online" />
-              100-AI Swarm Live Bridge
+              120-AI Swarm Live Bridge
             </span>
             <span style={{
               background: 'rgba(6, 182, 212, 0.12)',

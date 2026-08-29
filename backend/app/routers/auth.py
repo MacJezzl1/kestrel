@@ -188,37 +188,50 @@ async def get_license_info(user_id: str = Depends(get_current_user_id), db: Asyn
 async def link_broker_account(
     payload: dict,
     user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Save and link user's MT5 Broker Account (Login ID, Broker Name, Server).
-    Directly persists to Supabase PostgreSQL accounts table.
+    Directly persists to Supabase PostgreSQL accounts table scoped to this user.
     """
-    account_number = str(payload.get("account_number", "41230754")).strip()
+    account_number = str(payload.get("account_number", "")).strip()
     broker_name = str(payload.get("broker_name", "Deriv.com Limited")).strip()
     server = str(payload.get("server", "Deriv-Demo")).strip()
-    balance = float(payload.get("balance", 10500.00))
+    balance = float(payload.get("balance", 0.0))
     currency = str(payload.get("currency", "USD")).strip()
+    
+    if not account_number:
+        raise HTTPException(status_code=400, detail="Account Number / Login ID is required")
+        
+    # Get user email for isolation
+    user_res = await db.execute(select(User).where(User.id == user_id))
+    user_obj = user_res.scalar_one_or_none()
+    user_email = user_obj.email if user_obj else "trader"
+    is_owner = "mcjezz" in user_email.lower()
+    
+    license_key = "kestrel-enterprise-owner-vip" if is_owner else f"user-{user_email}"
+    license_tier = "ENTERPRISE_MASTER" if is_owner else "PRO_CLIENT"
     
     account_data = {
         "account_number": account_number,
         "broker_name": broker_name,
-        "license_key": "kestrel-enterprise-owner-vip",
-        "license_tier": "ENTERPRISE",
+        "license_key": license_key,
+        "license_tier": license_tier,
         "balance": balance,
-        "equity": balance + 45.20,
+        "equity": balance,
         "currency": currency,
-        "total_profit": 545.20,
-        "today_profit": 45.20,
+        "total_profit": 0.0,
+        "today_profit": 0.0,
         "recovery_level": "OPTIMAL",
         "recovery_multiplier": 1.0,
         "auto_trade_enabled": True
     }
     
-    sb_result = await supabase_client.update_account_metrics(account_data)
+    await supabase_client.update_account_metrics(account_data)
     
     return {
         "status": "success",
-        "message": f"MT5 Account #{account_number} ({broker_name} - {server}) linked and synchronized with Supabase cloud.",
+        "message": f"MT5 Account #{account_number} ({broker_name} - {server}) linked and synchronized.",
         "account": account_data
     }
 
@@ -226,17 +239,37 @@ async def link_broker_account(
 @router.get("/broker-info")
 async def get_broker_info(
     user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
 ):
     """Fetch current user's linked MT5 broker account details."""
-    acc = await supabase_client.get_latest_account()
+    user_res = await db.execute(select(User).where(User.id == user_id))
+    user_obj = user_res.scalar_one_or_none()
+    user_email = user_obj.email if user_obj else ""
+    is_owner = "mcjezz" in user_email.lower()
+
+    acc = await supabase_client.get_latest_account(
+        license_key="kestrel-enterprise-owner-vip" if is_owner else f"user-{user_email}",
+        user_email=user_email
+    )
     if acc:
         return acc
+
+    if is_owner:
+        return {
+            "account_number": "41230754",
+            "broker_name": "Deriv.com Limited",
+            "server": "Deriv-Demo",
+            "balance": 10500.00,
+            "equity": 10545.20,
+            "currency": "USD"
+        }
+        
     return {
-        "account_number": "41230754",
+        "account_number": "",
         "broker_name": "Deriv.com Limited",
         "server": "Deriv-Demo",
-        "balance": 10500.00,
-        "equity": 10545.20,
+        "balance": 0.00,
+        "equity": 0.00,
         "currency": "USD"
     }
 
