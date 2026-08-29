@@ -32,10 +32,44 @@ async def generate_signal(
     # Generate signal from ensemble
     signal_data = ensemble_engine.generate_signal(data.instrument, data.timeframe)
     
-    # Persist signal
-    signal = Signal(**signal_data)
+    # Persist signal locally
+    signal = Signal(**{
+        "instrument": signal_data["instrument"],
+        "timeframe": signal_data["timeframe"],
+        "direction": signal_data["direction"],
+        "confidence": signal_data["confidence"],
+        "regime": signal_data["regime"],
+        "model_votes": signal_data["model_votes"],
+        "model_confidences": signal_data["model_confidences"],
+        "entry_price": signal_data["entry_price"],
+        "stop_loss": signal_data["stop_loss"],
+        "take_profit": signal_data["take_profit"],
+    })
     db.add(signal)
     await db.flush()
+    
+    # Cloud sync to Supabase
+    try:
+        from app.db.supabase_client import supabase_client
+        await supabase_client.record_signal({
+            "instrument": signal.instrument,
+            "timeframe": signal.timeframe,
+            "direction": signal.direction,
+            "confidence": signal.confidence,
+            "regime": signal.regime,
+            "buy_votes": signal_data.get("swarm_summary", {}).get("buy_votes", 0),
+            "sell_votes": signal_data.get("swarm_summary", {}).get("sell_votes", 0),
+            "hold_votes": signal_data.get("swarm_summary", {}).get("hold_votes", 0),
+            "total_models": 100,
+            "consensus_percentage": signal_data.get("swarm_summary", {}).get("consensus_pct", signal.confidence * 100),
+            "leading_swarm": signal_data.get("swarm_summary", {}).get("leading_swarm", "GENERAL_CONSENSUS"),
+            "entry_price": signal.entry_price,
+            "stop_loss": signal.stop_loss,
+            "take_profit": signal.take_profit,
+            "swarm_details": signal_data.get("swarm_summary", {})
+        })
+    except Exception:
+        pass
     
     # Increment signal usage
     await increment_signal_count(db, user_id)

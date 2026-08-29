@@ -107,12 +107,12 @@ REGIME_WEIGHTS = {
 }
 
 
+from app.services.ensemble.swarm_100 import swarm_engine, SWARM_CATEGORIES
+
 class EnsembleEngine:
     """
-    Orchestrates the model ensemble with regime-aware dynamic weighting.
-    
-    Each model category votes independently, then votes are combined
-    using weights that depend on the detected market regime.
+    Orchestrates the 100-AI Model Swarm with regime-aware dynamic weighting
+    and automated Recovery Matrix calculations.
     """
     
     def __init__(self):
@@ -121,13 +121,8 @@ class EnsembleEngine:
         self.volatility = VolatilityRegimeModel()
         self.sentiment = SentimentModel()
         self.order_flow = OrderFlowModel()
-        self._model_count = sum([
-            len(TrendFollowingModel.MODELS),
-            len(MeanReversionModel.MODELS),
-            len(VolatilityRegimeModel.MODELS),
-            len(SentimentModel.MODELS),
-            len(OrderFlowModel.MODELS),
-        ])
+        self.swarm = swarm_engine
+        self._model_count = 100
     
     @property
     def model_count(self) -> int:
@@ -135,104 +130,49 @@ class EnsembleEngine:
     
     @property
     def active_categories(self) -> list:
-        return [
-            "trend_following", "mean_reversion", "volatility_regime",
-            "sentiment", "order_flow"
-        ]
+        return list(SWARM_CATEGORIES.keys())
     
-    def generate_signal(self, instrument: str, timeframe: str) -> dict:
+    def generate_signal(self, instrument: str, timeframe: str, account_drawdown: float = 0.0) -> dict:
         """
-        Generate a composite signal by running all model categories
-        and applying regime-aware weighting.
+        Generate a composite high-conviction signal by running 100 specialized
+        AI models across 5 Swarms with Bayesian consensus and recovery evaluation.
         """
-        # Step 1: Detect market regime
-        regime, regime_confidence = self.volatility.detect_regime(instrument, timeframe)
+        swarm_result = self.swarm.generate_swarm_consensus(
+            instrument=instrument,
+            timeframe=timeframe,
+            account_drawdown=account_drawdown
+        )
         
-        # Step 2: Get predictions from each category
-        trend_dir, trend_conf = self.trend.predict(instrument, timeframe)
-        reversion_dir, reversion_conf = self.reversion.predict(instrument, timeframe)
-        sentiment_dir, sentiment_conf = self.sentiment.predict(instrument, timeframe)
-        flow_dir, flow_conf = self.order_flow.predict(instrument, timeframe)
-        
-        # Step 3: Collect votes
+        # Build category summary votes for backward compatibility
         model_votes = {
-            "trend_following": trend_dir,
-            "mean_reversion": reversion_dir,
-            "volatility_regime": regime,
-            "sentiment": sentiment_dir,
-            "order_flow": flow_dir,
+            category.lower(): data["leader"].lower()
+            for category, data in swarm_result["swarm_summary"]["breakdowns"].items()
         }
         
         model_confidences = {
-            "trend_following": trend_conf,
-            "mean_reversion": reversion_conf,
-            "volatility_regime": regime_confidence,
-            "sentiment": sentiment_conf,
-            "order_flow": flow_conf,
+            category.lower(): round(data["buy" if swarm_result["direction"] == SIGNAL_BUY else "sell"] / data["total"], 2)
+            for category, data in swarm_result["swarm_summary"]["breakdowns"].items()
         }
-        
-        # Step 4: Apply regime-aware weighting
-        weights = REGIME_WEIGHTS.get(regime, REGIME_WEIGHTS[REGIME_RANGING])
-        
-        # Convert directional votes to numeric: buy=1, sell=-1, hold=0
-        dir_map = {SIGNAL_BUY: 1.0, SIGNAL_SELL: -1.0, SIGNAL_HOLD: 0.0}
-        
-        weighted_score = 0.0
-        total_confidence = 0.0
-        
-        for category in ["trend_following", "mean_reversion", "sentiment", "order_flow"]:
-            dir_val = dir_map.get(model_votes[category], 0.0)
-            weight = weights[category]
-            conf = model_confidences[category]
-            weighted_score += dir_val * weight * conf
-            total_confidence += weight * conf
-        
-        # Determine composite direction
-        if weighted_score > 0.1:
-            direction = SIGNAL_BUY
-        elif weighted_score < -0.1:
-            direction = SIGNAL_SELL
-        else:
-            direction = SIGNAL_HOLD
-        
-        # Composite confidence: weighted average of individual confidences
-        composite_confidence = round(
-            total_confidence / sum(weights[k] for k in ["trend_following", "mean_reversion", "sentiment", "order_flow"]),
-            3
-        )
-        composite_confidence = min(max(composite_confidence, 0.0), 1.0)
-        
-        # Generate mock price levels (in production: from actual price data)
-        base_price = round(random.uniform(1.0, 2000.0), 5)
-        sl_distance = base_price * random.uniform(0.002, 0.01)
-        tp_distance = sl_distance * random.uniform(1.5, 3.0)
-        
-        if direction == SIGNAL_BUY:
-            stop_loss = round(base_price - sl_distance, 5)
-            take_profit = round(base_price + tp_distance, 5)
-        elif direction == SIGNAL_SELL:
-            stop_loss = round(base_price + sl_distance, 5)
-            take_profit = round(base_price - tp_distance, 5)
-        else:
-            stop_loss = None
-            take_profit = None
         
         return {
             "instrument": instrument,
             "timeframe": timeframe,
-            "direction": direction,
-            "confidence": composite_confidence,
-            "regime": regime,
+            "direction": swarm_result["direction"],
+            "confidence": swarm_result["confidence"],
+            "regime": swarm_result["regime"],
             "model_votes": model_votes,
             "model_confidences": model_confidences,
-            "entry_price": base_price,
-            "stop_loss": stop_loss,
-            "take_profit": take_profit,
+            "entry_price": swarm_result["entry_price"],
+            "stop_loss": swarm_result["stop_loss"],
+            "take_profit": swarm_result["take_profit"],
+            "swarm_summary": swarm_result["swarm_summary"],
+            "recovery_metrics": swarm_result["recovery_metrics"],
             "metadata_extra": {
-                "weighted_score": round(weighted_score, 4),
-                "regime_confidence": regime_confidence,
-                "model_count": self._model_count,
+                "model_count": 100,
+                "consensus_percentage": swarm_result["swarm_summary"]["consensus_pct"],
+                "leading_swarm": swarm_result["swarm_summary"]["leading_swarm"],
                 "generated_at": datetime.now(timezone.utc).isoformat(),
+                "engine_version": "Kestrel-100-AI-Swarm-v2.0"
             }
         }
 

@@ -81,6 +81,21 @@ async def create_trade(
     db.add(trade)
     await db.flush()
     
+    # Cloud sync to Supabase
+    try:
+        from app.db.supabase_client import supabase_client
+        await supabase_client.record_trade({
+            "instrument": trade.instrument,
+            "direction": trade.direction,
+            "entry_price": trade.entry_price,
+            "lot_size": trade.lot_size,
+            "confidence_at_entry": trade.confidence_at_entry,
+            "execution_status": trade.status.upper() if trade.status else "OPEN",
+            "metadata": {"user_id": user_id, "signal_id": trade.signal_id}
+        })
+    except Exception:
+        pass
+    
     await log_action(
         db, "trade_opened", user_id,
         {"trade_id": trade.id, "instrument": data.instrument, "direction": data.direction},

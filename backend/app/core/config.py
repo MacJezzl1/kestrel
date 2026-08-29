@@ -43,8 +43,13 @@ class Settings(BaseSettings):
     # Bridge
     MT5_ADAPTER_SECRET: str = os.getenv("MT5_ADAPTER_SECRET", "mt5-adapter-secret-change-me")
     
-    # Rate Limiting
-    RATE_LIMIT_PER_MINUTE: int = 60
+    # Supabase Cloud Database Integration
+    SUPABASE_URL: Optional[str] = os.getenv("SUPABASE_URL", "https://qbdmnpjvkllktwkoqeow.supabase.co")
+    SUPABASE_KEY: Optional[str] = os.getenv("SUPABASE_KEY", "")
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    
+    # Swarm Settings
+    AI_SWARM_MODELS_COUNT: int = 100
     
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

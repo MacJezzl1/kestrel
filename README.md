@@ -104,25 +104,49 @@ flowchart TD
 
 | Module | Purpose | Status |
 | :--- | :--- | :---: |
-| **🦅 Kestrel Core** | High-throughput FastAPI engine running regime-aware multi-model ensembles | <img src="https://img.shields.io/badge/Active-10b981?style=flat-square" /> |
+| **🦅 Kestrel Core** | High-throughput FastAPI engine running 100-AI swarm ensemble with dynamic recovery matrix | <img src="https://img.shields.io/badge/Active-10b981?style=flat-square" /> |
+| **🧠 100-AI Swarm** | 5 specialized swarms (Macro, Price Action, Quant Arbitrage, Momentum, Sentiment) aggregating 100 models | <img src="https://img.shields.io/badge/Active-10b981?style=flat-square" /> |
+| **🗄️ Supabase Cloud DB** | Real-time PostgreSQL database with live WebSockets, RLS, trade ledger, and license management | <img src="https://img.shields.io/badge/Active-10b981?style=flat-square" /> |
 | **👁️ Kestrel Vision** | Chart screenshot & camera scanning module extracting S/R levels, patterns, and trendlines | <img src="https://img.shields.io/badge/Active-10b981?style=flat-square" /> |
-| **🔌 Kestrel Bridge** | Swappable thin clients (MT5 EA included) reporting execution & receiving signals | <img src="https://img.shields.io/badge/Active-10b981?style=flat-square" /> |
+| **🔌 Kestrel Bridge (MT5)** | Next-gen MQL5 EA with cyber on-chart HUD, live PnL, recovery level, and 100% autonomous auto-pilot | <img src="https://img.shields.io/badge/Active-10b981?style=flat-square" /> |
 | **🛡️ Kestrel Shield** | Server-side JWT authentication, rate limiting, and immutable audit logs | <img src="https://img.shields.io/badge/Active-10b981?style=flat-square" /> |
 | **📊 Kestrel Dashboard** | Ultra-modern dark navy / steel-blue interface with deep performance analytics | <img src="https://img.shields.io/badge/Active-10b981?style=flat-square" /> |
 
 ---
 
-## 🥊 Competitive Differentiation
+## 🧠 100-AI Swarm Intelligence Architecture
 
-| Capability | Legacy / Competitor EAs | Kestrel Platform |
-| :--- | :--- | :--- |
-| **Architecture** | Heavy DLLs or locked single-terminal bots | Independent cloud brain + ultra-thin client adapters |
-| **Model Intelligence** | Single indicator or opaque black-box formula | Dynamic ~60-100 model ensemble across 5-9 distinct categories |
-| **Decision Transparency** | Zero visibility into reasons | Full audit trail displaying which models agreed/disagreed |
-| **Visual Analysis** | None | **Kestrel Vision** chart upload & pattern scanner |
-| **Risk Protection** | Fixed stop-loss or martingale risk | Active Max Drawdown Guard with live risk budgeting |
-| **Cross-Platform** | Terminal-locked (MT4 only or MT5 only) | Cross-platform (MT5, Web, TradingView, Crypto ready) |
-| **Licensing** | Static strings easily leaked or decompiled | Account-bound cryptographically signed JWT sessions |
+Kestrel v2.0 introduces the **100-Model Swarm Engine** dividing 100 specialized algorithmic, quantitative, and AI reasoning agents across 5 distinct intelligence swarms (20 models each):
+
+1. **🌐 Macro & Geopolitical Swarm (20 Models)**: DXY momentum, yield curve inversion, Fed funds delta, CPI inflation surprises, commodity correlations, COT net positioning, cross-currency basis, and sovereign risk indices.
+2. **🕯️ Price Action & Microstructure Swarm (20 Models)**: Multi-timeframe Order Blocks, Fair Value Gaps (FVG), Liquidity Grabs (Highs/Lows), Market Structure Shifts (MSS), Wyckoff accumulation/distribution phases, and session opening sweeps.
+3. **📐 Statistical Arbitrage & Quant Swarm (20 Models)**: Kalman Filter price estimation, Hurst Exponent fractal persistence, Ornstein-Uhlenbeck mean-reversion, GARCH volatility clustering, Shannon entropy disorder, and Monte Carlo path projections.
+4. **🌊 Momentum & Wave Swarm (20 Models)**: Adaptive EMA ribbons, Ichimoku cloud dynamic, SuperTrend multi-TF, Hull moving average slope, Chaikin Money Flow (CMF), and vortex trend energy.
+5. **🤖 Sentiment, NLP & AI Reasoning Swarm (20 Models)**: News sentiment NLP, Central Bank tone analysis, orderbook bid/ask depth imbalance, institutional dark pool tracking, and reasoning consensus arbiters.
+
+---
+
+## 🗄️ Supabase Cloud Database Integration
+
+Kestrel connects directly to [Supabase PostgreSQL](https://supabase.com/dashboard/org/qbdmnpjvkllktwkoqeow) for cloud storage, audit trails, and multi-client real-time synchronization:
+
+* **DDL Schema**: Located in [`backend/db/supabase_schema.sql`](./backend/db/supabase_schema.sql)
+* **Tables Included**:
+  * `accounts`: Live equity, balance, drawdown, and recovery levels.
+  * `trades`: Complete audit trail of entries, exits, profit/loss, pips, and MT5 tickets.
+  * `signals`: 100-AI consensus breakdown, confidence, and market regime classifications.
+  * `ai_models`: Model registry with dynamic accuracy weights and latency metrics.
+  * `performance_snapshots`: Historical equity curves and daily PnL stats.
+  * `system_logs`: Real-time operational logs.
+
+### Setting up Supabase:
+1. Open your project on [Supabase Dashboard](https://supabase.com/dashboard/org/qbdmnpjvkllktwkoqeow).
+2. Go to **SQL Editor** → Paste and run [`backend/db/supabase_schema.sql`](./backend/db/supabase_schema.sql).
+3. Set your credentials in `backend/.env`:
+   ```env
+   SUPABASE_URL="https://qbdmnpjvkllktwkoqeow.supabase.co"
+   SUPABASE_KEY="your-anon-or-service-role-key"
+   ```
 
 ---
 
@@ -168,14 +192,16 @@ npm run dev
 
 ---
 
-### 3️⃣ Setup MetaTrader 5 Bridge Adapter
+### 3️⃣ Setup MetaTrader 5 Bridge Adapter (Autonomous Mode)
 
 1. Open **MetaTrader 5** → Navigate to `File` → `Open Data Folder` → `MQL5` → `Experts`.
 2. Copy [`adapters/mt5/KestrelEA.mq5`](./adapters/mt5/KestrelEA.mq5) into the `Experts` directory.
 3. In MT5, go to `Tools` → `Options` → `Expert Advisors`:
    * Check **"Allow WebRequest for listed URL"**
-   * Add your API endpoint: `http://localhost:8000` (or your cloud production URL).
-4. Compile `KestrelEA.mq5` in MetaEditor and attach it to any chart!
+   * Add your API endpoints: `http://localhost:8000` and `https://qbdmnpjvkllktwkoqeow.supabase.co`.
+4. Compile `KestrelEA.mq5` in MetaEditor and attach it to your chart!
+   * The manual Buy/Sell one-click bar is hidden automatically for pure **100% Autonomous Auto-Pilot**.
+   * The futuristic cyber HUD will display live PnL, Recovery Multiplier, and 100-AI consensus votes directly on your chart canvas.
 
 ---
 
@@ -193,30 +219,24 @@ Kestrel/
 │   │   ├── schemas/                 # Pydantic request/response models
 │   │   ├── routers/                 # Auth, Signals, Trades, Dashboard, Vision
 │   │   ├── services/
-│   │   │   ├── ensemble/            # Model categories & regime-aware weights
+│   │   │   ├── ensemble/            # 100-AI Swarm & regime-aware weights
 │   │   │   ├── shield/              # Licensing & immutable audit logging
 │   │   │   └── vision/              # Chart digitization pipeline
-│   │   └── db/                      # Async database engine
+│   │   └── db/                      # Supabase & SQLite persistence
+│   ├── db/
+│   │   └── supabase_schema.sql      # Supabase PostgreSQL DDL migration
 │   ├── pyproject.toml
 │   └── requirements.txt
 ├── frontend/                        # Kestrel Dashboard (Next.js 16 + TS)
 │   ├── src/
-│   │   ├── app/
-│   │   │   ├── page.tsx             # Auth & registration portal
-│   │   │   ├── dashboard/           # Live metrics, status & drawdown guard
-│   │   │   ├── signals/             # On-demand AI signal generator
-│   │   │   ├── trades/              # Comprehensive trade history & stats
-│   │   │   ├── analysis/            # Portfolio ratios & performance matrices
-│   │   │   ├── vision/              # Chart upload & OCR analysis
-│   │   │   ├── settings/            # License tier & bridge preferences
-│   │   │   └── globals.css          # Design system
+│   │   ├── app/                     # Next.js App Router (Dashboard, Vision, Signals, Trades)
 │   │   ├── components/layout/       # Sidebar & navigation
 │   │   └── lib/                     # API client & auth context
 │   ├── package.json
 │   └── tsconfig.json
 ├── adapters/                        # Bridge Thin Clients
 │   └── mt5/
-│       └── KestrelEA.mq5            # Expert Advisor (MQL5)
+│       └── KestrelEA.mq5            # Expert Advisor with on-chart Cyber HUD
 └── README.md                        # Master Project Documentation
 ```
 
