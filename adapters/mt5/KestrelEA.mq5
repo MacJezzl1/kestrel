@@ -15,7 +15,7 @@
 
 //--- Input parameters
 input group "=== Kestrel Core & Cloud Settings ==="
-input string   KestrelAPIUrl     = "https://api.kestrel.local:8000";  // Kestrel Core API URL
+input string   KestrelAPIUrl     = "https://backend-p4hdmaqm1-macjezzl1s-projects.vercel.app";  // Kestrel Core API URL (Live Vercel)
 input string   KestrelAPIToken   = "kestrel-pro-license-jwt";          // JWT Access Token / License Key
 input string   AdapterSecret     = "mt5-adapter-secret-change-me";     // Bridge Adapter Secret
 input string   SupabaseUrl       = "https://fuzhwfvixsiyjwokigkp.supabase.co"; // Supabase Project URL

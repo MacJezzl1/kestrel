@@ -31,6 +31,8 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:8000",
         "https://api.kestrel.local:8000",
+        "https://frontend-delta-pied-96.vercel.app",
+        "https://backend-p4hdmaqm1-macjezzl1s-projects.vercel.app",
     ]
     
     # Vision (defaults to /tmp/uploads on Vercel)
