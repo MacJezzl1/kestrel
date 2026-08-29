@@ -133,6 +133,37 @@ async def get_latest_signals(
     )
 
 
+@router.get("/ai/ollama-status")
+async def get_ollama_status(user_id: str = Depends(get_current_user_id)):
+    """Check local/cloud Ollama server connection and available models."""
+    from app.services.ensemble.ollama_client import ollama_client
+    return await ollama_client.check_status()
+
+
+@router.post("/ai/deep-reasoning")
+async def run_deep_reasoning(
+    payload: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Run DeepSeek-R1 / Llama 3.3 quantitative market reasoning."""
+    from app.services.ensemble.ollama_client import ollama_client
+    instrument = payload.get("instrument", "EURUSD")
+    timeframe = payload.get("timeframe", "H1")
+    direction = payload.get("direction", "buy")
+    confidence = float(payload.get("confidence", 0.88))
+    regime = payload.get("regime", "trending")
+    model = payload.get("model", "deepseek-r1:latest")
+
+    return await ollama_client.reason_market_setup(
+        instrument=instrument,
+        timeframe=timeframe,
+        direction=direction,
+        confidence=confidence,
+        regime=regime,
+        model=model
+    )
+
+
 @router.get("/{signal_id}", response_model=SignalResponse)
 async def get_signal(
     signal_id: str,
