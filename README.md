@@ -128,7 +128,7 @@ Kestrel v2.0 introduces the **100-Model Swarm Engine** dividing 100 specialized 
 
 ## 🗄️ Supabase Cloud Database Integration
 
-Kestrel connects directly to [Supabase PostgreSQL](https://supabase.com/dashboard/org/qbdmnpjvkllktwkoqeow) for cloud storage, audit trails, and multi-client real-time synchronization:
+Kestrel connects directly to [Supabase PostgreSQL](https://supabase.com/dashboard/project/fuzhwfvixsiyjwokigkp) (`https://fuzhwfvixsiyjwokigkp.supabase.co`) for cloud storage, audit trails, and multi-client real-time synchronization:
 
 * **DDL Schema**: Located in [`backend/db/supabase_schema.sql`](./backend/db/supabase_schema.sql)
 * **Tables Included**:
@@ -140,12 +140,13 @@ Kestrel connects directly to [Supabase PostgreSQL](https://supabase.com/dashboar
   * `system_logs`: Real-time operational logs.
 
 ### Setting up Supabase:
-1. Open your project on [Supabase Dashboard](https://supabase.com/dashboard/org/qbdmnpjvkllktwkoqeow).
-2. Go to **SQL Editor** → Paste and run [`backend/db/supabase_schema.sql`](./backend/db/supabase_schema.sql).
-3. Set your credentials in `backend/.env`:
+1. Open your project on [Supabase SQL Editor](https://supabase.com/dashboard/project/fuzhwfvixsiyjwokigkp/sql).
+2. Go to **SQL Editor** → Click **New query** → Paste and click **Run** on [`backend/db/supabase_schema.sql`](./backend/db/supabase_schema.sql).
+3. Copy your project API Keys from **Project Settings → API** and set them in `backend/.env`:
    ```env
-   SUPABASE_URL="https://qbdmnpjvkllktwkoqeow.supabase.co"
-   SUPABASE_KEY="your-anon-or-service-role-key"
+   SUPABASE_URL="https://fuzhwfvixsiyjwokigkp.supabase.co"
+   SUPABASE_KEY="your-anon-key"
+   SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
    ```
 
 ---
@@ -198,7 +199,7 @@ npm run dev
 2. Copy [`adapters/mt5/KestrelEA.mq5`](./adapters/mt5/KestrelEA.mq5) into the `Experts` directory.
 3. In MT5, go to `Tools` → `Options` → `Expert Advisors`:
    * Check **"Allow WebRequest for listed URL"**
-   * Add your API endpoints: `http://localhost:8000` and `https://qbdmnpjvkllktwkoqeow.supabase.co`.
+   * Add your API endpoints: `http://localhost:8000` and `https://fuzhwfvixsiyjwokigkp.supabase.co`.
 4. Compile `KestrelEA.mq5` in MetaEditor and attach it to your chart!
    * The manual Buy/Sell one-click bar is hidden automatically for pure **100% Autonomous Auto-Pilot**.
    * The futuristic cyber HUD will display live PnL, Recovery Multiplier, and 100-AI consensus votes directly on your chart canvas.

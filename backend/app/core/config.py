@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     MT5_ADAPTER_SECRET: str = os.getenv("MT5_ADAPTER_SECRET", "mt5-adapter-secret-change-me")
     
     # Supabase Cloud Database Integration
-    SUPABASE_URL: Optional[str] = os.getenv("SUPABASE_URL", "https://qbdmnpjvkllktwkoqeow.supabase.co")
+    SUPABASE_URL: Optional[str] = os.getenv("SUPABASE_URL", "https://fuzhwfvixsiyjwokigkp.supabase.co")
     SUPABASE_KEY: Optional[str] = os.getenv("SUPABASE_KEY", "")
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     

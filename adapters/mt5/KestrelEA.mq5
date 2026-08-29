@@ -18,7 +18,7 @@ input group "=== Kestrel Core & Cloud Settings ==="
 input string   KestrelAPIUrl     = "https://api.kestrel.local:8000";  // Kestrel Core API URL
 input string   KestrelAPIToken   = "kestrel-pro-license-jwt";          // JWT Access Token / License Key
 input string   AdapterSecret     = "mt5-adapter-secret-change-me";     // Bridge Adapter Secret
-input string   SupabaseUrl       = "https://qbdmnpjvkllktwkoqeow.supabase.co"; // Supabase Project URL
+input string   SupabaseUrl       = "https://fuzhwfvixsiyjwokigkp.supabase.co"; // Supabase Project URL
 
 input group "=== Autonomous Execution Settings ==="
 input bool     AutoTrade         = true;                               // Autonomous Auto-Execution
