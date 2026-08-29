@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
+import MobileNav from '@/components/layout/MobileNav';
 
 export default function SecurityLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -30,6 +31,7 @@ export default function SecurityLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="app-layout">
+      <MobileNav />
       <Sidebar />
       <main className="main-content">
         <header className="header">

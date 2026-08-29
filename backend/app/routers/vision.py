@@ -42,52 +42,9 @@ async def analyze_chart(
     with open(filepath, "wb") as f:
         f.write(contents)
     
-    # MVP: Return mock analysis result
-    # In production: this calls the Vision pipeline (preprocess → OCR → digitize → pattern detect)
-    analysis_result = {
-        "id": file_id,
-        "filename": file.filename,
-        "status": "completed",
-        "confidence": 0.78,
-        "image_quality": "good",
-        "detected_patterns": [
-            {
-                "pattern": "Double Bottom",
-                "confidence": 0.82,
-                "location": "center-right",
-                "significance": "Bullish reversal pattern",
-            },
-            {
-                "pattern": "Support Level",
-                "confidence": 0.91,
-                "price_level": 1.0845,
-                "strength": "strong",
-            },
-            {
-                "pattern": "Resistance Level",
-                "confidence": 0.87,
-                "price_level": 1.0920,
-                "strength": "moderate",
-            },
-            {
-                "pattern": "Ascending Trendline",
-                "confidence": 0.74,
-                "direction": "bullish",
-            },
-        ],
-        "summary": "Chart shows a bullish double bottom pattern forming near strong support at 1.0845. "
-                   "An ascending trendline supports upward momentum. Resistance at 1.0920 may cap "
-                   "initial gains. Overall bias: moderately bullish.",
-        "suggested_action": {
-            "direction": "buy",
-            "entry_zone": "1.0850 - 1.0870",
-            "stop_loss": "1.0820",
-            "take_profit": "1.0920",
-            "confidence": 0.78,
-        },
-        "disclaimer": "Analysis confidence depends on image quality. This is a decision-support tool — "
-                       "always confirm with live market data before trading.",
-    }
+    from app.services.vision.pipeline import vision_pipeline
+    analysis_result = vision_pipeline.analyze_image(contents, file.filename or "chart.png")
+    analysis_result["id"] = file_id
     
     # Audit log
     await log_action(
