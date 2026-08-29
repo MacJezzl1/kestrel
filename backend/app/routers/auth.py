@@ -16,12 +16,19 @@ from app.services.shield.audit import log_action
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
+from app.db.supabase_client import supabase_client
+
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(data: UserRegister, request: Request, db: AsyncSession = Depends(get_db)):
     """Register a new Kestrel account."""
-    # Check if email already exists
+    # Check if email already exists locally
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
+        
+    # Also check Supabase
+    supabase_user = await supabase_client.get_user_by_email(data.email)
+    if supabase_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Create user
@@ -35,6 +42,21 @@ async def register(data: UserRegister, request: Request, db: AsyncSession = Depe
     
     # Create free license
     license_obj = await create_license(db, user.id)
+    
+    # Sync User and License to Supabase Cloud
+    try:
+        await supabase_client.save_user({
+            "id": user.id,
+            "email": user.email,
+            "hashed_password": user.hashed_password,
+            "full_name": user.full_name,
+            "is_active": user.is_active,
+            "license_tier": license_obj.tier,
+            "license_status": license_obj.status,
+            "token_version": user.token_version
+        })
+    except Exception:
+        pass
     
     # Audit log
     await log_action(db, "register", user.id, {"email": data.email}, 
@@ -63,6 +85,21 @@ async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(ge
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
     
+    # If not in local SQLite (e.g. serverless cold restart), check Supabase
+    if not user:
+        sb_u = await supabase_client.get_user_by_email(data.email)
+        if sb_u:
+            user = User(
+                id=sb_u["id"],
+                email=sb_u["email"],
+                hashed_password=sb_u["hashed_password"],
+                full_name=sb_u.get("full_name"),
+                is_active=sb_u.get("is_active", True),
+                token_version=sb_u.get("token_version", 1)
+            )
+            db.add(user)
+            await db.flush()
+    
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
@@ -70,7 +107,7 @@ async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=403, detail="Account is disabled")
     
     license_obj = await get_license(db, user.id)
-    tier = license_obj.tier if license_obj else "free"
+    tier = license_obj.tier if license_obj else "pro"
     l_status = license_obj.status if license_obj else "active"
     
     # Audit log
@@ -98,6 +135,21 @@ async def get_profile(user_id: str = Depends(get_current_user_id), db: AsyncSess
     """Get current user profile."""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
+    
+    if not user:
+        sb_u = await supabase_client.get_user_by_id(user_id)
+        if sb_u:
+            user = User(
+                id=sb_u["id"],
+                email=sb_u["email"],
+                hashed_password=sb_u["hashed_password"],
+                full_name=sb_u.get("full_name"),
+                is_active=sb_u.get("is_active", True),
+                token_version=sb_u.get("token_version", 1)
+            )
+            db.add(user)
+            await db.flush()
+            
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -108,7 +160,7 @@ async def get_profile(user_id: str = Depends(get_current_user_id), db: AsyncSess
         email=user.email,
         full_name=user.full_name,
         is_active=user.is_active,
-        license_tier=license_obj.tier if license_obj else "free",
+        license_tier=license_obj.tier if license_obj else "pro",
         license_status=license_obj.status if license_obj else "active",
         created_at=user.created_at,
     )

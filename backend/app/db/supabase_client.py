@@ -128,5 +128,67 @@ class SupabaseClient:
             logger.error("❌ Supabase get_latest_signals error: %s", str(e))
         return []
 
+    async def save_user(self, user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Insert or update user in Supabase 'users' table."""
+        if not self.is_configured:
+            return None
+            
+        try:
+            headers = self._get_headers()
+            headers["Prefer"] = "resolution=merge-duplicates,return=representation"
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                res = await client.post(
+                    f"{self.rest_url}/users",
+                    headers=headers,
+                    json=user_data
+                )
+                if res.status_code in (200, 201):
+                    data = res.json()
+                    logger.info("✅ User saved to Supabase: %s", user_data.get("email"))
+                    return data[0] if isinstance(data, list) and data else data
+                else:
+                    logger.warning("⚠️ Supabase save_user response (%d): %s", res.status_code, res.text)
+        except Exception as e:
+            logger.error("❌ Supabase save_user error: %s", str(e))
+        return None
+
+    async def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """Fetch user by email from Supabase."""
+        if not self.is_configured:
+            return None
+            
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                res = await client.get(
+                    f"{self.rest_url}/users",
+                    headers=self._get_headers(),
+                    params={"email": f"eq.{email}", "limit": "1"}
+                )
+                if res.status_code == 200:
+                    users = res.json()
+                    return users[0] if users else None
+        except Exception as e:
+            logger.error("❌ Supabase get_user_by_email error: %s", str(e))
+        return None
+
+    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch user by ID from Supabase."""
+        if not self.is_configured:
+            return None
+            
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                res = await client.get(
+                    f"{self.rest_url}/users",
+                    headers=self._get_headers(),
+                    params={"id": f"eq.{user_id}", "limit": "1"}
+                )
+                if res.status_code == 200:
+                    users = res.json()
+                    return users[0] if users else None
+        except Exception as e:
+            logger.error("❌ Supabase get_user_by_id error: %s", str(e))
+        return None
+
 
 supabase_client = SupabaseClient()

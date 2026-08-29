@@ -7,6 +7,33 @@
 -- Enable UUID extension if not already enabled
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- 0. USERS & WEB AUTH TABLE
+CREATE TABLE IF NOT EXISTS users (
+    id VARCHAR(64) PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    license_tier VARCHAR(32) DEFAULT 'pro',
+    license_status VARCHAR(32) DEFAULT 'active',
+    token_version INT DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 0.1 LICENSES TABLE
+CREATE TABLE IF NOT EXISTS licenses (
+    id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) REFERENCES users(id) ON DELETE CASCADE,
+    license_key VARCHAR(128) UNIQUE NOT NULL,
+    tier VARCHAR(32) DEFAULT 'pro',
+    status VARCHAR(32) DEFAULT 'active',
+    signals_used_today INT DEFAULT 0,
+    signals_limit INT DEFAULT 100,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- 1. ACCOUNTS & LICENSES TABLE
 CREATE TABLE IF NOT EXISTS accounts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -148,14 +175,16 @@ END $$;
 -- ====================================================================
 -- ROW LEVEL SECURITY (RLS)
 -- ====================================================================
-ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE trades ENABLE ROW LEVEL SECURITY;
-ALTER TABLE signals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ai_models ENABLE ROW LEVEL SECURITY;
-ALTER TABLE performance_snapshots ENABLE ROW LEVEL SECURITY;
-ALTER TABLE system_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 
 -- Allow read/write access via API keys
+CREATE POLICY "Allow full access to users" ON users
+    FOR ALL USING (true);
+
+CREATE POLICY "Allow full access to licenses" ON licenses
+    FOR ALL USING (true);
+
 CREATE POLICY "Allow full access to active models" ON ai_models
     FOR ALL USING (true);
 
@@ -173,3 +202,4 @@ CREATE POLICY "Allow service role full access to snapshots" ON performance_snaps
 
 CREATE POLICY "Allow service role full access to logs" ON system_logs
     FOR ALL USING (true);
+
