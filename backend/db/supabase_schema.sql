@@ -156,8 +156,8 @@ ALTER TABLE performance_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_logs ENABLE ROW LEVEL SECURITY;
 
 -- Allow read/write access via API keys
-CREATE POLICY "Allow public read access to active models" ON ai_models
-    FOR SELECT USING (is_active = true);
+CREATE POLICY "Allow full access to active models" ON ai_models
+    FOR ALL USING (true);
 
 CREATE POLICY "Allow service role full access to accounts" ON accounts
     FOR ALL USING (true);
