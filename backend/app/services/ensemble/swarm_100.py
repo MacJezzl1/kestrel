@@ -62,6 +62,15 @@ SWARM_CATEGORIES = {
         "sent_high_frequency_tick_entropy", "sent_deepseek_reasoner_agent", "sent_qwen_quant_agent",
         "sent_llama_macro_analyst", "sent_gemma_signal_auditor", "sent_mistral_risk_controller",
         "sent_claude_pattern_verifier", "sent_gpt4o_consensus_arbiter"
+    ],
+    "SYNTHETIC_DERIV_QUANT": [
+        "deriv_poisson_spike_arrival_crash", "deriv_poisson_spike_arrival_boom", "deriv_volatility_1s_clustering",
+        "deriv_step_index_jump_probability", "deriv_jump_index_inversion_model", "deriv_range_break_expansion",
+        "deriv_dex_drift_momentum_filter", "deriv_high_frequency_tick_variance", "deriv_synthetic_garch_regime",
+        "deriv_adaptive_kalman_tick_denoiser", "deriv_liquidity_void_hunter", "deriv_tick_hurst_exponent",
+        "deriv_continuous_martingale_shield", "deriv_subsecond_spread_arbiter", "deriv_vol_75_fractal_dimension",
+        "deriv_vol_100_spike_decay_rate", "deriv_crash_300_reversal_matrix", "deriv_boom_1000_accumulation",
+        "deriv_instantaneous_trend_filter", "deriv_quantum_synthetic_optima"
     ]
 }
 

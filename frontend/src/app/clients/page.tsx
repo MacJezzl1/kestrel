@@ -221,15 +221,79 @@ export default function ClientsPage() {
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="input-group" style={{ minWidth: 220, flex: 1 }}>
-            <label className="input-label">Select Instrument</label>
+            <label className="input-label">Select Instrument (Deriv Synthetic & Global Markets)</label>
             <select
               className="input"
               value={broadcastSymbol}
               onChange={(e) => setBroadcastSymbol(e.target.value)}
             >
-              {['Volatility 100 Index', 'Crash 1000', 'Boom 500', 'XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD', 'NAS100'].map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
+              <optgroup label="Deriv Volatility (Continuous)">
+                <option value="Volatility 10 Index">Volatility 10 Index</option>
+                <option value="Volatility 25 Index">Volatility 25 Index</option>
+                <option value="Volatility 50 Index">Volatility 50 Index</option>
+                <option value="Volatility 75 Index">Volatility 75 Index</option>
+                <option value="Volatility 100 Index">Volatility 100 Index</option>
+              </optgroup>
+              <optgroup label="Deriv Volatility (1s)">
+                <option value="Volatility 10 (1s) Index">Volatility 10 (1s) Index</option>
+                <option value="Volatility 25 (1s) Index">Volatility 25 (1s) Index</option>
+                <option value="Volatility 50 (1s) Index">Volatility 50 (1s) Index</option>
+                <option value="Volatility 75 (1s) Index">Volatility 75 (1s) Index</option>
+                <option value="Volatility 100 (1s) Index">Volatility 100 (1s) Index</option>
+                <option value="Volatility 150 (1s) Index">Volatility 150 (1s) Index</option>
+                <option value="Volatility 250 (1s) Index">Volatility 250 (1s) Index</option>
+              </optgroup>
+              <optgroup label="Deriv Crash & Boom">
+                <option value="Crash 300 Index">Crash 300 Index</option>
+                <option value="Crash 500 Index">Crash 500 Index</option>
+                <option value="Crash 600 Index">Crash 600 Index</option>
+                <option value="Crash 900 Index">Crash 900 Index</option>
+                <option value="Crash 1000 Index">Crash 1000 Index</option>
+                <option value="Boom 300 Index">Boom 300 Index</option>
+                <option value="Boom 500 Index">Boom 500 Index</option>
+                <option value="Boom 600 Index">Boom 600 Index</option>
+                <option value="Boom 900 Index">Boom 900 Index</option>
+                <option value="Boom 1000 Index">Boom 1000 Index</option>
+              </optgroup>
+              <optgroup label="Deriv Step, Jump & DEX">
+                <option value="Step Index">Step Index</option>
+                <option value="Jump 10 Index">Jump 10 Index</option>
+                <option value="Jump 25 Index">Jump 25 Index</option>
+                <option value="Jump 50 Index">Jump 50 Index</option>
+                <option value="Jump 75 Index">Jump 75 Index</option>
+                <option value="Jump 100 Index">Jump 100 Index</option>
+                <option value="Range Break 100 Index">Range Break 100 Index</option>
+                <option value="Range Break 200 Index">Range Break 200 Index</option>
+                <option value="DEX 600 Down">DEX 600 Down</option>
+                <option value="DEX 600 Up">DEX 600 Up</option>
+                <option value="DEX 900 Down">DEX 900 Down</option>
+                <option value="DEX 900 Up">DEX 900 Up</option>
+              </optgroup>
+              <optgroup label="Forex & Metals">
+                <option value="EURUSD">EURUSD</option>
+                <option value="GBPUSD">GBPUSD</option>
+                <option value="USDJPY">USDJPY</option>
+                <option value="AUDUSD">AUDUSD</option>
+                <option value="USDCAD">USDCAD</option>
+                <option value="USDCHF">USDCHF</option>
+                <option value="NZDUSD">NZDUSD</option>
+                <option value="EURGBP">EURGBP</option>
+                <option value="EURJPY">EURJPY</option>
+                <option value="GBPJPY">GBPJPY</option>
+                <option value="XAUUSD">XAUUSD (Gold)</option>
+                <option value="XAGUSD">XAGUSD (Silver)</option>
+                <option value="USOIL">USOIL (Crude)</option>
+              </optgroup>
+              <optgroup label="Cryptocurrencies & Global Indices">
+                <option value="BTCUSD">BTCUSD (Bitcoin)</option>
+                <option value="ETHUSD">ETHUSD (Ethereum)</option>
+                <option value="SOLUSD">SOLUSD (Solana)</option>
+                <option value="XRPUSD">XRPUSD (Ripple)</option>
+                <option value="NAS100">NAS100 (US Tech 100)</option>
+                <option value="US30">US30 (Wall Street 30)</option>
+                <option value="SPX500">SPX500 (S&P 500)</option>
+                <option value="GER40">GER40 (Germany 40)</option>
+              </optgroup>
             </select>
           </div>
 
@@ -353,6 +417,63 @@ export default function ClientsPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* 1-Click Client MetaTrader 5 Quick Setup & Bridge Guide */}
+      <div className="card" style={{
+        marginTop: 28,
+        border: '1px solid var(--accent-cyan)',
+        background: 'linear-gradient(135deg, rgba(10, 18, 30, 0.95) 0%, rgba(6, 12, 22, 0.95) 100%)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 24 }}>🚀</span>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>
+                1-Click Client MetaTrader 5 Quick Setup & Bridge Guide
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                How all 5 clients easily connect their Deriv MT5 to the Kestrel Cloud Swarm in under 60 seconds
+              </div>
+            </div>
+          </div>
+          <span className="badge badge-online">Zero Complex Setup</span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
+          <div style={{ padding: '14px 16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-secondary)' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent-cyan)', marginBottom: 6 }}>
+              Step 1: WebRequest URL Whitelist
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              In Deriv MT5, click <strong>Tools → Options → Expert Advisors</strong>. Check <em>"Allow WebRequest for listed URL"</em> and add:
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, background: 'rgba(0,0,0,0.5)', padding: '6px 8px', borderRadius: 4, marginTop: 6, color: 'var(--accent-cyan)', wordBreak: 'break-all' }}>
+              https://backend-macjezzl1s-projects.vercel.app
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-secondary)' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent-cyan)', marginBottom: 6 }}>
+              Step 2: Copy KestrelEA.mq5
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Download <strong>KestrelEA.mq5</strong> from your repository and place it in your MT5 folder:
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, background: 'rgba(0,0,0,0.5)', padding: '6px 8px', borderRadius: 4, marginTop: 6, color: '#fff', wordBreak: 'break-all' }}>
+              MQL5 \ Experts \ KestrelEA.mq5
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-secondary)' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent-cyan)', marginBottom: 6 }}>
+              Step 3: Drag & Enable AutoTrading
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Drag <strong>KestrelEA</strong> onto any Deriv chart (Volatility 75, Crash 1000, EURUSD) and enable <strong>"Algo Trading"</strong>. All master trades and AI Swarm snipes will execute automatically!
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

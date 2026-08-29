@@ -43,14 +43,73 @@ interface AISniperSetup {
 }
 
 const ASSETS = [
+  // Deriv Continuous Volatility
+  'Volatility 10 Index',
+  'Volatility 25 Index',
+  'Volatility 50 Index',
+  'Volatility 75 Index',
   'Volatility 100 Index',
-  'Crash 1000',
-  'Boom 500',
-  'XAUUSD',
+  // Deriv 1-Second (1s) Volatility
+  'Volatility 10 (1s) Index',
+  'Volatility 25 (1s) Index',
+  'Volatility 50 (1s) Index',
+  'Volatility 75 (1s) Index',
+  'Volatility 100 (1s) Index',
+  'Volatility 150 (1s) Index',
+  'Volatility 250 (1s) Index',
+  // Deriv Crash & Boom
+  'Crash 300 Index',
+  'Crash 500 Index',
+  'Crash 600 Index',
+  'Crash 900 Index',
+  'Crash 1000 Index',
+  'Boom 300 Index',
+  'Boom 500 Index',
+  'Boom 600 Index',
+  'Boom 900 Index',
+  'Boom 1000 Index',
+  // Deriv Step & Jump & DEX
+  'Step Index',
+  'Jump 10 Index',
+  'Jump 25 Index',
+  'Jump 50 Index',
+  'Jump 75 Index',
+  'Jump 100 Index',
+  'Range Break 100 Index',
+  'Range Break 200 Index',
+  'DEX 600 Down',
+  'DEX 600 Up',
+  'DEX 900 Down',
+  'DEX 900 Up',
+  // Forex Majors
   'EURUSD',
   'GBPUSD',
   'USDJPY',
-  'BTCUSD'
+  'AUDUSD',
+  'USDCAD',
+  'USDCHF',
+  'NZDUSD',
+  'EURGBP',
+  'EURJPY',
+  'GBPJPY',
+  // Metals & Commodities
+  'XAUUSD',
+  'XAGUSD',
+  'USOIL',
+  'UKOIL',
+  // Cryptos
+  'BTCUSD',
+  'ETHUSD',
+  'SOLUSD',
+  'XRPUSD',
+  'BNBUSD',
+  // Indices
+  'NAS100',
+  'US30',
+  'SPX500',
+  'GER40',
+  'UK100',
+  'JPN225'
 ];
 
 const TIMEFRAMES = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1'];

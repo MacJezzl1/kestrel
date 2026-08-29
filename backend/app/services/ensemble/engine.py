@@ -122,11 +122,10 @@ class EnsembleEngine:
         self.sentiment = SentimentModel()
         self.order_flow = OrderFlowModel()
         self.swarm = swarm_engine
-        self._model_count = 100
     
     @property
     def model_count(self) -> int:
-        return self._model_count
+        return self.swarm.total_models
     
     @property
     def active_categories(self) -> list:
