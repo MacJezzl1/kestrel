@@ -6,6 +6,8 @@ import { useAuth } from '@/lib/auth';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { href: '/terminal', label: 'AI Sniper Live', icon: '🎯' },
+  { href: '/clients', label: 'Client Hub (5)', icon: '👥' },
   { href: '/signals', label: 'Signals', icon: '📡' },
   { href: '/trades', label: 'Trade History', icon: '📋' },
   { href: '/analysis', label: 'Analysis', icon: '🔬' },

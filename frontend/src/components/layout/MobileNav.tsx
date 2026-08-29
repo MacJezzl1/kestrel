@@ -7,14 +7,16 @@ import { useAuth } from '@/lib/auth';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { href: '/terminal', label: 'Sniper', icon: '🎯' },
+  { href: '/clients', label: 'Clients', icon: '👥' },
   { href: '/signals', label: 'Signals', icon: '📡' },
-  { href: '/trades', label: 'Trades', icon: '📋' },
   { href: '/vision', label: 'Vision', icon: '👁️' },
-  { href: '/analysis', label: 'Analysis', icon: '🔬' },
 ];
 
 const allNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { href: '/terminal', label: 'AI Sniper Live Chart', icon: '🎯' },
+  { href: '/clients', label: 'Multi-Client Copy Hub (5)', icon: '👥' },
   { href: '/signals', label: 'AI Signals', icon: '📡' },
   { href: '/trades', label: 'Trade History', icon: '📋' },
   { href: '/analysis', label: 'Portfolio Analysis', icon: '🔬' },

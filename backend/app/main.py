@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import init_db, close_db
-from app.routers import auth, signals, trades, dashboard, vision, security, payments
+from app.routers import auth, signals, trades, dashboard, vision, security, payments, clients, market
 
 
 @asynccontextmanager
@@ -16,17 +16,11 @@ async def lifespan(app: FastAPI):
     # Startup
     await init_db()
     print(f"[Kestrel] {settings.APP_VERSION} -- Engine online")
-    print(f"   Models loaded: {_get_model_count()} across 5 categories")
     print(f"   Database: {settings.DATABASE_URL}")
     yield
     # Shutdown
     await close_db()
     print("[Kestrel] -- Engine offline")
-
-
-def _get_model_count():
-    from app.services.ensemble.engine import ensemble_engine
-    return ensemble_engine.model_count
 
 
 app = FastAPI(
@@ -56,6 +50,8 @@ app.include_router(dashboard.router)
 app.include_router(vision.router)
 app.include_router(security.router)
 app.include_router(payments.router)
+app.include_router(clients.router)
+app.include_router(market.router)
 
 
 @app.get("/", tags=["Health"])

@@ -187,6 +187,104 @@ class ApiClient {
     });
   }
 
+  // Multi-Client Copy-Trader Hub
+  async getClients() {
+    return this.request<{
+      summary: {
+        total_clients: number;
+        active_clients: number;
+        total_aum_usd: number;
+        total_equity_usd: number;
+        floating_profit_usd: number;
+        total_realized_profit: number;
+        today_profit: number;
+        swarm_status: string;
+        sync_latency_ms: number;
+      };
+      clients: Array<{
+        id: string;
+        account_number: string;
+        broker_name: string;
+        license_tier: string;
+        balance: number;
+        equity: number;
+        currency: string;
+        total_profit: number;
+        today_profit: number;
+        recovery_multiplier: number;
+        auto_trade_enabled: boolean;
+        is_active: boolean;
+      }>;
+    }>('/api/clients');
+  }
+
+  async broadcastTrade(data: { action: string; instrument: string; base_lot: number; sl?: number; tp?: number }) {
+    return this.request<{ status: string; message: string; orders_executed: any[] }>('/api/clients/broadcast-trade', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  async emergencyHaltAll() {
+    return this.request<{ status: string; message: string }>('/api/clients/emergency-halt-all', {
+      method: 'POST',
+    });
+  }
+
+  async toggleClientCopy(account_number: string, is_active: boolean) {
+    return this.request<{ status: string; message: string }>('/api/clients/toggle-copy', {
+      method: 'POST',
+      body: { account_number, is_active },
+    });
+  }
+
+  // Quantum AI Sniper Market Engine
+  async getOHLCV(symbol: string = 'Volatility 100 Index', timeframe: string = 'H1', count: number = 60) {
+    const params = new URLSearchParams({ symbol, timeframe, count: String(count) });
+    return this.request<{
+      symbol: string;
+      timeframe: string;
+      digits: number;
+      current_price: number;
+      spread: number;
+      candles: Array<{
+        time: string;
+        timestamp: number;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume: number;
+        is_bull: boolean;
+      }>;
+      order_blocks: Array<{
+        type: string;
+        top: number;
+        bottom: number;
+        strength: string;
+        active: boolean;
+      }>;
+      fair_value_gaps: Array<{
+        type: string;
+        top: number;
+        bottom: number;
+        status: string;
+      }>;
+      ai_sniper_setup: {
+        direction: string;
+        confidence: number;
+        swarm_consensus: string;
+        entry: number;
+        stop_loss: number;
+        tp1: number;
+        tp2: number;
+        tp3: number;
+        risk_reward: string;
+        regime: string;
+      };
+    }>(`/api/market/ohlcv?${params}`);
+  }
+
   // Vision
   async analyzeChart(file: File) {
     const formData = new FormData();
