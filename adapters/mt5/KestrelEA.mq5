@@ -584,7 +584,10 @@ void ManageTrailingStops()
                req.symbol   = Symbol();
                req.sl       = newSl;
                req.tp       = currentTp;
-               OrderSend(req, res);
+               if(OrderSend(req, res))
+               {
+                  Print("🛡️ [TRAILING STOP]: Position #", ticket, " SL modified to breakeven @ ", DoubleToString(newSl, digits));
+               }
             }
          }
       }
