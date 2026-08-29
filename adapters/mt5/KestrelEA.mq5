@@ -20,7 +20,7 @@
 
 //--- Input parameters
 input group "=== Kestrel Quantum Core & Cloud ==="
-input string   KestrelAPIUrl     = "https://backend-p4hdmaqm1-macjezzl1s-projects.vercel.app";  // Kestrel Core API URL (Live Vercel)
+input string   KestrelAPIUrl     = "https://backend-macjezzl1s-projects.vercel.app";  // Kestrel Core API URL (Live Vercel Production)
 input string   KestrelAPIToken   = "kestrel-enterprise-owner-vip";     // JWT License Token (Enterprise VIP)
 input string   AdapterSecret     = "mt5-adapter-secret-change-me";     // Bridge Adapter Secret
 input string   SupabaseUrl       = "https://fuzhwfvixsiyjwokigkp.supabase.co"; // Supabase Project URL

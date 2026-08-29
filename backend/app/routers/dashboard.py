@@ -47,6 +47,9 @@ async def get_dashboard_summary(
     latest_signal_result = await db.execute(
         select(Signal).order_by(Signal.created_at.desc()).limit(1)
     )
+    latest_signal = latest_signal_result.scalar_one_or_none()
+    current_regime = latest_signal.regime if latest_signal else "High Volatility Breakout"
+    
     # Fetch live MT5 connected account from Supabase
     live_bal = 0.0
     live_eq = 0.0
