@@ -121,6 +121,18 @@ class ApiClient {
     return this.request<AuditLogEntry[]>(`/api/security/audit-log?limit=${limit}&offset=${offset}`);
   }
 
+  // Broker Account Linker
+  async linkBrokerAccount(data: { account_number: string; broker_name: string; server: string; balance?: number; currency?: string }) {
+    return this.request<{ status: string; message: string; account: any }>('/api/auth/link-broker', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  async getBrokerInfo() {
+    return this.request<{ account_number: string; broker_name: string; server: string; balance: number; equity: number; currency: string }>('/api/auth/broker-info');
+  }
+
   // Dashboard
   async getDashboardSummary() {
     return this.request<DashboardSummary>('/api/dashboard/summary');

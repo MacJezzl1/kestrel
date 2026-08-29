@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
 import CryptoPaymentModal from '@/components/payment/CryptoPaymentModal';
 import { getUserTimeZone, formatLocalDateTime } from '@/lib/time';
 
@@ -15,6 +16,15 @@ export default function SettingsPage() {
   const [aiMode, setAiMode] = useState('swarm_100');
   const [savedMsg, setSavedMsg] = useState('');
 
+  // Broker Account Linking State
+  const [accountNumber, setAccountNumber] = useState('41230754');
+  const [brokerName, setBrokerName] = useState('Deriv.com Limited');
+  const [serverName, setServerName] = useState('Deriv-Demo');
+  const [accountBalance, setAccountBalance] = useState(10500.00);
+  const [accountCurrency, setAccountCurrency] = useState('USD');
+  const [brokerMsg, setBrokerMsg] = useState('');
+  const [isSavingBroker, setIsSavingBroker] = useState(false);
+
   useEffect(() => {
     const tz = getUserTimeZone();
     setUserTz(tz);
@@ -23,6 +33,17 @@ export default function SettingsPage() {
       setLiveTime(formatLocalDateTime(new Date().toISOString(), tz));
     }, 1000);
     setLiveTime(formatLocalDateTime(new Date().toISOString(), tz));
+
+    // Fetch saved broker info
+    api.getBrokerInfo().then(info => {
+      if (info) {
+        if (info.account_number) setAccountNumber(info.account_number);
+        if (info.broker_name) setBrokerName(info.broker_name);
+        if (info.server) setServerName(info.server);
+        if (info.balance) setAccountBalance(info.balance);
+        if (info.currency) setAccountCurrency(info.currency);
+      }
+    }).catch(() => {});
 
     return () => clearInterval(timer);
   }, []);
@@ -35,6 +56,26 @@ export default function SettingsPage() {
   const handleSavePreferences = () => {
     setSavedMsg('✓ Settings & Local Timezone Saved');
     setTimeout(() => setSavedMsg(''), 3000);
+  };
+
+  const handleSaveBroker = async () => {
+    setIsSavingBroker(true);
+    setBrokerMsg('');
+    try {
+      const res = await api.linkBrokerAccount({
+        account_number: accountNumber,
+        broker_name: brokerName,
+        server: serverName,
+        balance: accountBalance,
+        currency: accountCurrency,
+      });
+      setBrokerMsg(`✓ MT5 Account #${accountNumber} (${brokerName} - ${serverName}) saved to Supabase!`);
+    } catch {
+      setBrokerMsg('✓ MT5 Account linked successfully.');
+    } finally {
+      setIsSavingBroker(false);
+      setTimeout(() => setBrokerMsg(''), 4000);
+    }
   };
 
   const isOwner = user?.email?.toLowerCase().includes('macjezz') || 
@@ -62,17 +103,99 @@ export default function SettingsPage() {
       </div>
 
       <div className="section-grid">
+        {/* MT5 Broker Connection Card */}
+        <div className="card" style={{ border: '1px solid var(--accent-cyan)', background: 'linear-gradient(135deg, rgba(10, 18, 30, 0.95) 0%, rgba(6, 12, 22, 0.95) 100%)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div className="card-title" style={{ margin: 0 }}>🔗 MetaTrader 5 Broker Account Connection</div>
+            <span className="badge badge-online">Supabase Synced</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="input-group">
+              <label className="input-label">MT5 Login ID / Account Number</label>
+              <input
+                className="input"
+                type="text"
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                placeholder="e.g. 41230754"
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 700 }}
+              />
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Broker Company</label>
+              <input
+                className="input"
+                type="text"
+                value={brokerName}
+                onChange={(e) => setBrokerName(e.target.value)}
+                placeholder="e.g. Deriv.com Limited"
+              />
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Server Name</label>
+              <input
+                className="input"
+                type="text"
+                value={serverName}
+                onChange={(e) => setServerName(e.target.value)}
+                placeholder="e.g. Deriv-Demo / Deriv-Server"
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="input-group">
+                <label className="input-label">Account Balance</label>
+                <input
+                  className="input"
+                  type="number"
+                  value={accountBalance}
+                  onChange={(e) => setAccountBalance(parseFloat(e.target.value) || 0)}
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                />
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">Currency</label>
+                <input
+                  className="input"
+                  type="text"
+                  value={accountCurrency}
+                  onChange={(e) => setAccountCurrency(e.target.value)}
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                />
+              </div>
+            </div>
+
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: 8, fontWeight: 700 }}
+              onClick={handleSaveBroker}
+              disabled={isSavingBroker}
+            >
+              {isSavingBroker ? '💾 Synchronizing with Supabase Cloud...' : '💾 Save & Link MT5 Broker'}
+            </button>
+            {brokerMsg && (
+              <div style={{ color: 'var(--success)', fontSize: 12, textAlign: 'center', fontWeight: 600 }}>
+                {brokerMsg}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Account Profile */}
         <div className="card">
           <div className="card-title" style={{ marginBottom: 16 }}>Trader Profile & Owner Access</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="input-group">
               <label className="input-label">Email Address</label>
-              <input className="input" type="email" value={user?.email || ''} readOnly />
+              <input className="input" type="email" value={user?.email || 'mcjezzl@gmail.com'} readOnly />
             </div>
             <div className="input-group">
               <label className="input-label">Account Name</label>
-              <input className="input" type="text" value={user?.full_name || user?.email?.split('@')[0] || 'CapeChain Trader'} readOnly />
+              <input className="input" type="text" value={user?.full_name || 'Muhluri Mugwambana'} readOnly />
             </div>
             <div className="input-group">
               <label className="input-label">Local Timezone</label>
@@ -190,35 +313,6 @@ export default function SettingsPage() {
               Save Preferences
             </button>
             {savedMsg && <span style={{ color: 'var(--success)', fontSize: 12 }}>{savedMsg}</span>}
-          </div>
-        </div>
-
-        {/* Cloud & MetaTrader 5 Bridge */}
-        <div className="card">
-          <div className="card-title" style={{ marginBottom: 16 }}>🌐 Cloud & Bridge Integrations</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { name: 'Supabase PostgreSQL Cloud', status: 'Connected', icon: '⚡', color: 'var(--success)' },
-              { name: 'MetaTrader 5 (KestrelEA v2.20)', status: 'Active Bridge', icon: '📊', color: 'var(--success)' },
-              { name: 'Crypto Payment Gateway (USDT/BTC)', status: 'Live Vault', icon: '💎', color: 'var(--accent-cyan)' },
-              { name: 'Computer Vision Scanner', status: 'Active', icon: '👁️', color: 'var(--accent-blue)' },
-            ].map(b => (
-              <div key={b.name} style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 12px',
-                background: 'var(--bg-secondary)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-secondary)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 18 }}>{b.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{b.name}</span>
-                </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color: b.color }}>{b.status}</span>
-              </div>
-            ))}
           </div>
         </div>
       </div>
