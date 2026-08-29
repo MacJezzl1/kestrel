@@ -350,21 +350,34 @@ export interface TradeStats {
 export interface VisionAnalysis {
   id: string;
   filename: string;
+  asset_detected?: string;
   status: string;
   confidence: number;
   image_quality: string;
   detected_patterns: Array<{
     pattern: string;
     confidence: number;
-    [key: string]: unknown;
+    location?: string;
+    significance?: string;
+    price_level?: string;
+    strength?: string;
+    [key: string]: any;
   }>;
   summary: string;
   suggested_action: {
+    asset?: string;
     direction: string;
     entry_zone: string;
     stop_loss: string;
     take_profit: string;
+    take_profit_levels?: {
+      tp1_conservative: string;
+      tp2_standard: string;
+      tp3_extended: string;
+    };
+    risk_reward?: string;
     confidence: number;
+    setup_rating?: string;
   };
   disclaimer: string;
 }
