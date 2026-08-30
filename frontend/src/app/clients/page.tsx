@@ -127,7 +127,16 @@ export default function ClientsPage() {
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <a
+            href="/Kestrel_Quantum_Trading_Intelligence.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+            style={{ fontWeight: 800, fontSize: 12, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <span>📄</span> Download Official PAMM Deck (PDF)
+          </a>
           <span className="badge badge-online">
             <span className="pulse-dot online" />
             Swarm Multi-Sync: {summary.sync_latency_ms}ms

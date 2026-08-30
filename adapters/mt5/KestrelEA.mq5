@@ -809,9 +809,12 @@ void ReportTradeToSupabase(string direction, double price, double lots, double s
                   + "Authorization: Bearer " + SupabaseApiKey + "\r\n"
                   + "Content-Type: application/json\r\n";
                   
+   string accNum = (StringLen(ClientAccountID) > 0) ? ClientAccountID : IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
+   
    string json = "{\"instrument\":\"" + GetInstrument() + "\","
                 + "\"timeframe\":\"" + GetTimeframe() + "\","
                 + "\"direction\":\"" + direction + "\","
+                + "\"account_number\":\"" + accNum + "\","
                 + "\"lot_size\":" + DoubleToString(lots, 2) + ","
                 + "\"entry_price\":" + DoubleToString(price, 5) + ","
                 + "\"stop_loss\":" + DoubleToString(sl, 5) + ","
@@ -820,6 +823,7 @@ void ReportTradeToSupabase(string direction, double price, double lots, double s
                 + "\"confidence_at_entry\":" + DoubleToString(g_lastConfidence, 3) + ","
                 + "\"swarm_consensus_pct\":" + DoubleToString(g_consensusPct, 1) + ","
                 + "\"market_regime\":\"" + g_lastRegime + "\","
+                + "\"status\":\"open\","
                 + "\"execution_status\":\"OPEN\"}";
                 
    char post_data[], result[];
@@ -900,8 +904,8 @@ void Render3DHUD()
    CreateRectLabel("BG_MAIN", x, y, panelW, panelH, C'12,16,26', C'0,180,220', 2);
    
    // 2. Header Branding
-   CreateLabel("LBL_BRAND", "🦅 CAPECHAIN LABS", x + 16, y + 14, "Segoe UI Black", 11, C'0,229,255');
-   CreateLabel("LBL_TITLE", "KESTREL 120-AI QUANTUM SWARM", x + 16, y + 32, "Segoe UI Semibold", 9, C'230,240,255');
+   CreateLabel("LBL_BRAND", "🦅 KESTREL QUANTUM INTELLIGENCE", x + 16, y + 14, "Segoe UI Black", 10, C'0,229,255');
+   CreateLabel("LBL_TITLE", "120-AI QUANTUM SWARM ENGINE", x + 16, y + 32, "Segoe UI Semibold", 9, C'230,240,255');
 
    // 3. Client Mode Tag
    bool isMaster = (ClientAccountID == "41230754");

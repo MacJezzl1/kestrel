@@ -46,7 +46,17 @@ export default function Sidebar() {
           </Link>
         ))}
 
-        <div className="nav-section-label" style={{ marginTop: 'auto' }}>System</div>
+        <div className="nav-section-label" style={{ marginTop: 'auto' }}>System & Docs</div>
+        <a
+          href="/Kestrel_Quantum_Trading_Intelligence.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nav-item"
+          style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}
+        >
+          <span className="nav-icon">📄</span>
+          Official Deck (PDF)
+        </a>
         {bottomItems.map((item) => (
           <Link
             key={item.href}
