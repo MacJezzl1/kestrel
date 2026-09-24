@@ -13,6 +13,32 @@ from app.core.config import settings
 import bcrypt
 import secrets
 import hashlib
+import base64
+
+
+# --- PKCE (RFC 7636) Utilities ---
+
+def compute_pkce_challenge(code_verifier: str) -> str:
+    """Compute S256 code challenge from a code verifier: BASE64URL(SHA256(verifier))."""
+    digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def verify_pkce(code_verifier: str, code_challenge: str, method: str = "S256") -> bool:
+    """
+    Verify a code_verifier against a stored code_challenge.
+    Supports 'S256' (mandatory for high-security) and 'plain'.
+    """
+    if not code_verifier or not code_challenge:
+        return False
+    
+    if method == "S256":
+        expected_challenge = compute_pkce_challenge(code_verifier)
+        return secrets.compare_digest(expected_challenge, code_challenge)
+    elif method == "plain":
+        return secrets.compare_digest(code_verifier, code_challenge)
+    return False
+
 
 # Bearer token extraction
 security_scheme = HTTPBearer(auto_error=False)

@@ -7,7 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import init_db, close_db
-from app.routers import auth, signals, trades, dashboard, vision, security, payments, clients, market
+from app.routers import auth, signals, trades, dashboard, vision, security, payments, clients, market, autopilot, orders
+
 
 
 @asynccontextmanager
@@ -17,8 +18,18 @@ async def lifespan(app: FastAPI):
     await init_db()
     print(f"[Kestrel] {settings.APP_VERSION} -- Engine online")
     print(f"   Database: {settings.DATABASE_URL}")
+
+    # Start Autopilot background engine
+    from app.services.autopilot.autopilot import autopilot_engine
+    await autopilot_engine.start()
+    print("[Kestrel] ✈️ Autopilot engine started (background loop active)")
+
     yield
+
     # Shutdown
+    from app.services.autopilot.autopilot import autopilot_engine as ap_engine
+    await ap_engine.stop()
+    print("[Kestrel] 🛑 Autopilot engine stopped")
     await close_db()
     print("[Kestrel] -- Engine offline")
 
@@ -52,6 +63,9 @@ app.include_router(security.router)
 app.include_router(payments.router)
 app.include_router(clients.router)
 app.include_router(market.router)
+app.include_router(autopilot.router)
+app.include_router(orders.router)
+
 
 
 @app.get("/", tags=["Health"])

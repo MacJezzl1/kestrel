@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kestrel Intelligence Engine v5.1 — Client Presentation Deck</title>
+<style>
+  :root {
+    --bg-main: #07090e;
+    --bg-card: #0e131f;
+    --bg-card-subtle: #141b2d;
+    --border-cyan: #00e5ff;
+    --border-subtle: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-green: #00ff88;
+    --accent-red: #ff2a55;
+    --accent-amber: #f59e0b;
+    --accent-purple: #c084fc;
+    --accent-cyan: #00e5ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+
+  .container {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  header {
+    border-bottom: 2px solid var(--border-cyan);
+    padding-bottom: 24px;
+    margin-bottom: 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .brand h1 {
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    color: var(--accent-cyan);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand p {
+    color: var(--text-secondary);
+    font-size: 15px;
+    margin-top: 4px;
+  }
+
+  .badge-vip {
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(0, 255, 136, 0.2));
+    border: 1px solid var(--border-cyan);
+    color: var(--accent-cyan);
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+    margin-bottom: 36px;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--border-cyan), transparent);
+  }
+
+  .card h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  .pattern-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: 'Consolas', monospace;
+    margin: 4px 4px 4px 0;
+  }
+
+  .tag-bull { background: rgba(0, 255, 136, 0.15); border: 1px solid var(--accent-green); color: var(--accent-green); }
+  .tag-bear { background: rgba(255, 42, 85, 0.15); border: 1px solid var(--accent-red); color: var(--accent-red); }
+  .tag-neutral { background: rgba(0, 229, 255, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); }
+
+  .metric-box {
+    background: var(--bg-card-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .metric-label { font-size: 13px; color: var(--text-secondary); }
+  .metric-val { font-size: 15px; font-weight: 700; font-family: 'Consolas', monospace; color: var(--text-primary); }
+
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 14px;
+  }
+
+  .comparison-table th, .comparison-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .comparison-table th {
+    background: var(--bg-card-subtle);
+    color: var(--accent-cyan);
+    font-weight: 700;
+  }
+
+  .highlight {
+    color: var(--accent-green);
+    font-weight: 700;
+  }
+
+  .footer {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 24px;
+    margin-top: 48px;
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <h1>🦅 KESTREL ENGINE v5.1</h1>
+      <p>Institutional Client Deck — Deep Candlestick Intelligence & Autonomous Execution</p>
+    </div>
+    <div class="badge-vip">Executive Client Edition</div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>🕯️ Candlestick & Price Action Engine</h2>
+      <p>Continuous algorithmic scanning of 12+ institutional single- and multi-bar candle patterns on confirmed closes.</p>
+      <div>
+        <span class="pattern-tag tag-bull">▲ Bullish Engulfing (92%)</span>
+        <span class="pattern-tag tag-bull">▲ Hammer / Pin Bar (88%)</span>
+        <span class="pattern-tag tag-bull">▲ Morning Star (95%)</span>
+        <span class="pattern-tag tag-bear">▼ Bearish Engulfing (92%)</span>
+        <span class="pattern-tag tag-bear">▼ Shooting Star (88%)</span>
+        <span class="pattern-tag tag-bear">▼ Evening Star (95%)</span>
+        <span class="pattern-tag tag-neutral">📦 Inside Bar Compression (78%)</span>
+        <span class="pattern-tag tag-neutral">⚡ Fair Value Gap (FVG)</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">Candle Confluence Contribution:</span>
+        <span class="metric-val highlight">12% Direct Vote</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⚖️ Candle Anatomy & Pressure Metrics</h2>
+      <p>Real-time mathematical decomposition of live candle forces to detect institutional accumulation or distribution.</p>
+      <div class="metric-box">
+        <span class="metric-label">Wick Rejection Force:</span>
+        <span class="metric-val" style="color:var(--accent-cyan);">Buying vs Selling %</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">Relative Bar Volatility:</span>
+        <span class="metric-val">Expansion (&gt;1.4x) / Squeeze (&lt;0.6x)</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">Live Candle Countdown:</span>
+        <span class="metric-val highlight">Exact MM:SS Remaining</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🖥️ Client Presentation Mode (HUD)</h2>
+      <p>One-click interactive toggle designed specifically for client walkthroughs and professional pitch sessions.</p>
+      <div class="metric-box">
+        <span class="metric-label">Executive Minimized Mode:</span>
+        <span class="metric-val highlight">[ 🗕 MIN ] Floating Sleek Bar</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">Pro Full Analytical Mode:</span>
+        <span class="metric-val">[ 🗖 EXP ] 10-Module Suite</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">Chart Aesthetics:</span>
+        <span class="metric-val" style="color:var(--accent-cyan);">Obsidian &amp; Neon 3D Cyber</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 36px;">
+    <h2>💎 Institutional Key Levels vs. Cluttered Heatmaps</h2>
+    <p>Upgraded to clean, non-intrusive institutional levels that preserve chart readability for your clients.</p>
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Standard / Legacy Cluttered Overlay</th>
+          <th>Kestrel v5.1 Institutional Key Levels</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Chart Obstruction</td>
+          <td style="color:var(--accent-red);">25 solid neon bands covering candles</td>
+          <td class="highlight">100% Transparent, Unobscured Candles</td>
+        </tr>
+        <tr>
+          <td>Display Density</td>
+          <td>Dozens of irrelevant historical levels</td>
+          <td class="highlight">Top 2 Supply + Top 2 Demand Levels only</td>
+        </tr>
+        <tr>
+          <td>Style &amp; Precision</td>
+          <td>Heavy colored rectangles</td>
+          <td class="highlight">Thin dashed institutional lines + Right-side price badges</td>
+        </tr>
+        <tr>
+          <td>Interactive Control</td>
+          <td>Static clutter</td>
+          <td class="highlight">1-Click Toggle between Clean Levels, Outlines, or Off</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>🦅 Kestrel Multi-Dimensional Intelligence Overview</h2>
+    <p>Kestrel blends 9 institutional intelligence vectors to deliver unmatched signal conviction:</p>
+    <div class="grid" style="margin-bottom:0; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+      <div class="metric-box">
+        <span class="metric-label">1. MTF Confluence</span>
+        <span class="metric-val">M5 to D1 (5 Timeframes)</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">2. Model Consensus</span>
+        <span class="metric-val">5 Strategy Clusters</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">3. Candlestick Engine</span>
+        <span class="metric-val highlight">12+ Patterns + FVG</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">4. Smart Key Levels</span>
+        <span class="metric-val">Supply &amp; Demand Pools</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">5. News Protection</span>
+        <span class="metric-val">ForexFactory Live Filter</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">6. Pattern Correlation</span>
+        <span class="metric-val">Pearson Lookback 500b</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>CapeChain Labs &copy; 2026 | Kestrel Autonomous Smart Trading Platform</div>
+    <div>Confidential — For Client &amp; Investor Demonstrations</div>
+  </div>
+</div>
+</body>
+</html>

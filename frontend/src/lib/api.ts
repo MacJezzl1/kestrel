@@ -295,6 +295,57 @@ class ApiClient {
       isFormData: true,
     });
   }
+
+  // ── Autopilot ──────────────────────────────────────────────────────
+
+  async getAutopilotStatus() {
+    return this.request<AutopilotStatus>('/api/autopilot/status');
+  }
+
+  async getAutopilotConfig() {
+    return this.request<AutopilotConfig>('/api/autopilot/config');
+  }
+
+  async updateAutopilotConfig(data: Partial<AutopilotConfigUpdate>) {
+    return this.request<AutopilotConfig>('/api/autopilot/config', {
+      method: 'PUT',
+      body: data,
+    });
+  }
+
+  async enableAutopilot() {
+    return this.request<{ status: string; mode: string; message: string }>('/api/autopilot/enable', {
+      method: 'POST',
+    });
+  }
+
+  async disableAutopilot() {
+    return this.request<{ status: string; message: string }>('/api/autopilot/disable', {
+      method: 'POST',
+    });
+  }
+
+  async killAutopilot() {
+    return this.request<{ status: string; message: string }>('/api/autopilot/kill', {
+      method: 'POST',
+    });
+  }
+
+  async unlockLiveMode() {
+    return this.request<{ status: string; message: string }>('/api/autopilot/unlock-live', {
+      method: 'POST',
+    });
+  }
+
+  async getAutopilotTradeLog(limit: number = 50, actionFilter?: string) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (actionFilter) params.set('action_filter', actionFilter);
+    return this.request<AutopilotTradeLog>(`/api/autopilot/trade-log?${params}`);
+  }
+
+  async getAutopilotPerformance() {
+    return this.request<AutopilotPerformance>('/api/autopilot/performance');
+  }
 }
 
 // Error class
@@ -504,6 +555,103 @@ export interface VisionAnalysis {
     setup_rating?: string;
   };
   disclaimer: string;
+}
+
+// ── Autopilot Types ──────────────────────────────────────────────────
+
+export interface AutopilotStatus {
+  is_running: boolean;
+  mode: string;
+  is_enabled: boolean;
+  is_drift_paused: boolean;
+  paper_trade_count: number;
+  paper_trade_required: number;
+  paper_progress_pct: number;
+  can_unlock_live: boolean;
+  total_decisions: number;
+  recent_executed: number;
+  recent_skipped: number;
+  recent_paper: number;
+  last_decision: Record<string, any> | null;
+  last_5_decisions: Record<string, any>[];
+  circuit_breakers: {
+    daily_loss_breaker: boolean;
+    weekly_loss_breaker: boolean;
+    max_positions: boolean;
+    drawdown_guard: boolean;
+    news_blackout: boolean;
+    performance_drift: boolean;
+  } | null;
+}
+
+export interface AutopilotConfig {
+  id: string;
+  user_id: string;
+  is_enabled: boolean;
+  mode: string;
+  confidence_threshold: number;
+  risk_per_trade_pct: number;
+  daily_max_loss_pct: number;
+  weekly_max_loss_pct: number;
+  max_concurrent_positions: number;
+  scan_interval_seconds: number;
+  instruments: string[];
+  instrument_modes: Record<string, string>;
+  news_blackout_enabled: boolean;
+  paper_trade_count: number;
+  paper_trade_required: number;
+  performance_baseline_winrate: number;
+  drift_threshold_pct: number;
+  is_drift_paused: boolean;
+  daily_loss_today: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutopilotConfigUpdate {
+  confidence_threshold?: number;
+  risk_per_trade_pct?: number;
+  daily_max_loss_pct?: number;
+  weekly_max_loss_pct?: number;
+  max_concurrent_positions?: number;
+  scan_interval_seconds?: number;
+  instruments?: string[];
+  instrument_modes?: Record<string, string>;
+  news_blackout_enabled?: boolean;
+  paper_trade_required?: number;
+  drift_threshold_pct?: number;
+}
+
+export interface AutopilotTradeLogEntry {
+  instrument: string;
+  timeframe: string;
+  direction: string;
+  confidence: number;
+  action: string;
+  reason: string;
+  gate_results: Array<{ gate: string; passed: boolean; reason: string }>;
+  lot_size: number;
+  entry_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
+  timestamp: string;
+}
+
+export interface AutopilotTradeLog {
+  decisions: AutopilotTradeLogEntry[];
+  total: number;
+}
+
+export interface AutopilotPerformance {
+  live_winrate: number;
+  baseline_winrate: number;
+  drift_pct: number;
+  drift_threshold_pct: number;
+  is_drifted: boolean;
+  total_paper_trades: number;
+  total_live_trades: number;
+  paper_profit: number;
+  live_profit: number;
 }
 
 // Export singleton

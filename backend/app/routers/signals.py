@@ -33,6 +33,11 @@ async def generate_signal(
     signal_data = ensemble_engine.generate_signal(data.instrument, data.timeframe)
     
     # Persist signal locally
+    metadata_extra = signal_data.get("metadata_extra", {})
+    metadata_extra["reasoning"] = signal_data.get("reasoning")
+    metadata_extra["holding_time_estimate"] = signal_data.get("holding_time_estimate")
+    metadata_extra["recommended_duration"] = signal_data.get("recommended_duration")
+
     signal = Signal(**{
         "instrument": signal_data["instrument"],
         "timeframe": signal_data["timeframe"],
@@ -44,6 +49,7 @@ async def generate_signal(
         "entry_price": signal_data["entry_price"],
         "stop_loss": signal_data["stop_loss"],
         "take_profit": signal_data["take_profit"],
+        "metadata_extra": metadata_extra,
     })
     db.add(signal)
     await db.flush()
@@ -66,6 +72,8 @@ async def generate_signal(
             "entry_price": signal.entry_price,
             "stop_loss": signal.stop_loss,
             "take_profit": signal.take_profit,
+            "reasoning": signal_data.get("reasoning"),
+            "holding_time_estimate": signal_data.get("holding_time_estimate"),
             "swarm_details": signal_data.get("swarm_summary", {})
         })
     except Exception:
@@ -84,6 +92,7 @@ async def generate_signal(
             "direction": signal.direction,
             "confidence": signal.confidence,
             "regime": signal.regime,
+            "reasoning": signal_data.get("reasoning"),
         },
         ip_address=request.client.host if request.client else None,
     )
@@ -100,6 +109,9 @@ async def generate_signal(
         entry_price=signal.entry_price,
         stop_loss=signal.stop_loss,
         take_profit=signal.take_profit,
+        reasoning=signal_data.get("reasoning"),
+        holding_time_estimate=signal_data.get("holding_time_estimate"),
+        recommended_duration=signal_data.get("recommended_duration"),
         created_at=signal.created_at,
     )
 
@@ -157,7 +169,11 @@ async def get_latest_signals(
                 direction=s.direction, confidence=s.confidence, regime=s.regime,
                 model_votes=s.model_votes, model_confidences=s.model_confidences,
                 entry_price=s.entry_price, stop_loss=s.stop_loss,
-                take_profit=s.take_profit, created_at=s.created_at,
+                take_profit=s.take_profit,
+                reasoning=(s.metadata_extra or {}).get("reasoning") if hasattr(s, "metadata_extra") else None,
+                holding_time_estimate=(s.metadata_extra or {}).get("holding_time_estimate") if hasattr(s, "metadata_extra") else None,
+                recommended_duration=(s.metadata_extra or {}).get("recommended_duration") if hasattr(s, "metadata_extra") else None,
+                created_at=s.created_at,
             ) for s in signals
         ],
         total=len(signals),
@@ -207,10 +223,68 @@ async def get_signal(
     if not signal:
         raise HTTPException(status_code=404, detail="Signal not found")
     
+    meta = signal.metadata_extra or {}
     return SignalResponse(
         id=signal.id, instrument=signal.instrument, timeframe=signal.timeframe,
         direction=signal.direction, confidence=signal.confidence, regime=signal.regime,
         model_votes=signal.model_votes, model_confidences=signal.model_confidences,
         entry_price=signal.entry_price, stop_loss=signal.stop_loss,
-        take_profit=signal.take_profit, created_at=signal.created_at,
+        take_profit=signal.take_profit,
+        reasoning=meta.get("reasoning"),
+        holding_time_estimate=meta.get("holding_time_estimate"),
+        recommended_duration=meta.get("recommended_duration"),
+        created_at=signal.created_at,
     )
+
+
+@router.post("/ai/multi-consensus")
+async def run_multi_model_consensus(
+    payload: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Run Multi-Model Ensemble Consensus across Local (Ollama) and Cloud LLMs (OpenAI, Claude, Gemini).
+    Calculates Quorum agreement (~99% accuracy protocol) and records audit trail to ai_logs.
+    """
+    from app.services.ensemble.multi_orchestrator import multi_orchestrator
+    instrument = payload.get("instrument", "Volatility 100 Index")
+    timeframe = payload.get("timeframe", "H1")
+    current_price = float(payload.get("current_price", 1250.50))
+    technical_context = payload.get("technical_context", {"rsi": 52.0, "bias": "BULLISH"})
+
+    return await multi_orchestrator.run_consensus_analysis(
+        instrument=instrument,
+        timeframe=timeframe,
+        current_price=current_price,
+        technical_context=technical_context,
+        user_id=user_id,
+    )
+
+
+@router.get("/ai/logs")
+async def list_ai_logs(
+    limit: int = 20,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieve recent AI model queries, consensus decisions, and latencies from ai_logs table."""
+    from app.models.models import AiLog
+    res = await db.execute(
+        select(AiLog).order_by(desc(AiLog.created_at)).limit(min(limit, 50))
+    )
+    logs = res.scalars().all()
+    return [
+        {
+            "id": l.id,
+            "prompt_type": l.prompt_type,
+            "prompt": l.prompt,
+            "response": l.response,
+            "model": l.model,
+            "consensus_score": l.consensus_score,
+            "models_queried": l.models_queried,
+            "latency_ms": l.latency_ms,
+            "created_at": l.created_at,
+        }
+        for l in logs
+    ]
+

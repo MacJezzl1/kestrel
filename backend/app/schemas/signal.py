@@ -33,6 +33,9 @@ class SignalResponse(BaseModel):
     entry_price: Optional[float] = None
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+    reasoning: Optional[str] = None
+    holding_time_estimate: Optional[str] = None
+    recommended_duration: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

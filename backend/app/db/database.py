@@ -37,6 +37,7 @@ async def get_db() -> AsyncSession:
 async def init_db():
     """Create all database tables and run lightweight migrations."""
     from sqlalchemy import text
+    import app.models.models  # Ensure all models are registered with Base.metadata
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -48,6 +49,22 @@ async def init_db():
             ))
         except Exception:
             pass  # Column already exists
+
+        # Lightweight migration: add mfa_enabled and mfa_secret to users if missing
+        try:
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT 0"
+            ))
+        except Exception:
+            pass
+
+        try:
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(64)"
+            ))
+        except Exception:
+            pass
+
 
 
 async def close_db():

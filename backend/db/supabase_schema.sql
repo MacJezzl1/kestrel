@@ -10,10 +10,12 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 2. DROP EXISTING TABLES IN REVERSE DEPENDENCY ORDER (CLEAN SLATE RESET)
 DROP TABLE IF EXISTS performance_snapshots CASCADE;
+DROP TABLE IF EXISTS ai_logs CASCADE;
 DROP TABLE IF EXISTS system_logs CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 DROP TABLE IF EXISTS client_subscriptions CASCADE;
 DROP TABLE IF EXISTS trades CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
 DROP TABLE IF EXISTS signals CASCADE;
 DROP TABLE IF EXISTS ai_models CASCADE;
 DROP TABLE IF EXISTS accounts CASCADE;
@@ -21,7 +23,7 @@ DROP TABLE IF EXISTS licenses CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
 -- ====================================================================
--- TABLE 1: USERS & AUTHENTICATION
+-- TABLE 1: USERS & AUTHENTICATION (WITH MFA & OAUTH2 METADATA)
 -- ====================================================================
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -29,12 +31,15 @@ CREATE TABLE users (
     hashed_password VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE,
+    mfa_enabled BOOLEAN DEFAULT FALSE,
+    mfa_secret VARCHAR(64),
     license_tier VARCHAR(32) DEFAULT 'PRO', -- 'PRO', 'ENTERPRISE', 'LIFETIME'
     license_status VARCHAR(32) DEFAULT 'ACTIVE',
     token_version INT DEFAULT 1,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
 
 -- ====================================================================
 -- TABLE 2: LICENSES & USAGE LIMITS
@@ -81,12 +86,38 @@ CREATE TABLE accounts (
 );
 
 -- ====================================================================
--- TABLE 4: TRADES (REAL-TIME EXECUTION JOURNAL & MT5 DEALS)
+-- TABLE 4: ORDERS (IDEMPOTENT LIFECYCLE & MULTI-ACCOUNT DISPATCH)
+-- ====================================================================
+CREATE TABLE orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+    account_number VARCHAR(64),
+    client_order_id VARCHAR(64) UNIQUE NOT NULL, -- Idempotency key
+    instrument VARCHAR(64) NOT NULL,
+    order_type VARCHAR(16) NOT NULL DEFAULT 'MARKET', -- 'MARKET', 'LIMIT', 'STOP'
+    direction VARCHAR(8) NOT NULL, -- 'BUY', 'SELL'
+    qty NUMERIC(8, 2) NOT NULL DEFAULT 0.01,
+    price NUMERIC(15, 5),
+    stop_loss NUMERIC(15, 5),
+    take_profit NUMERIC(15, 5),
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'SUBMITTED', 'FILLED', 'REJECTED', 'CANCELLED'
+    filled_price NUMERIC(15, 5),
+    filled_qty NUMERIC(8, 2),
+    error_message TEXT,
+    mt5_ticket BIGINT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ====================================================================
+-- TABLE 5: TRADES (REAL-TIME EXECUTION JOURNAL & MT5 DEALS)
 -- ====================================================================
 CREATE TABLE trades (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+    order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
     account_number VARCHAR(64),
     mt5_ticket BIGINT,
     deal_id VARCHAR(64),
@@ -186,14 +217,35 @@ CREATE TABLE client_subscriptions (
 );
 
 -- ====================================================================
+-- TABLE 9: AI LOGS (MULTI-MODEL ORCHESTRATION & CONSENSUS AUDIT)
+-- ====================================================================
+CREATE TABLE ai_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    prompt_type VARCHAR(64) NOT NULL, -- 'SIGNAL_ANALYSIS', 'MARKET_INSIGHT', 'CHAT'
+    prompt TEXT NOT NULL,
+    response TEXT NOT NULL,
+    model VARCHAR(64) NOT NULL,
+    consensus_score NUMERIC(5, 2) DEFAULT 0.00,
+    models_queried JSONB DEFAULT '[]'::jsonb,
+    latency_ms INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ====================================================================
 -- INDEXES FOR HIGH-SPEED QUERYING & LATENCY OPTIMIZATION
 -- ====================================================================
 CREATE INDEX IF NOT EXISTS idx_accounts_num ON accounts(account_number);
 CREATE INDEX IF NOT EXISTS idx_accounts_license ON accounts(license_key);
+CREATE INDEX IF NOT EXISTS idx_orders_client_id ON orders(client_order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_account ON orders(account_number);
 CREATE INDEX IF NOT EXISTS idx_trades_account ON trades(account_number);
 CREATE INDEX IF NOT EXISTS idx_trades_created ON trades(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_signals_instrument ON signals(instrument);
 CREATE INDEX IF NOT EXISTS idx_signals_created ON signals(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_user ON ai_logs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_prompt_type ON ai_logs(prompt_type);
 CREATE INDEX IF NOT EXISTS idx_logs_type ON system_logs(log_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
@@ -203,11 +255,21 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read orders" ON orders FOR SELECT USING (true);
+CREATE POLICY "Allow public insert orders" ON orders FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update orders" ON orders FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public read ai_logs" ON ai_logs FOR SELECT USING (true);
+CREATE POLICY "Allow public insert ai_logs" ON ai_logs FOR INSERT WITH CHECK (true);
+
 
 CREATE POLICY "Allow public read users" ON users FOR SELECT USING (true);
 CREATE POLICY "Allow public insert users" ON users FOR INSERT WITH CHECK (true);
@@ -269,3 +331,77 @@ VALUES
 ON CONFLICT (client_account_number) DO UPDATE SET 
     risk_multiplier = EXCLUDED.risk_multiplier,
     updated_at = NOW();
+
+-- ====================================================================
+-- TABLE: AUTOPILOT CONFIGURATION (Per-User Settings)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS autopilot_configs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    is_enabled BOOLEAN DEFAULT FALSE,
+    mode VARCHAR(20) DEFAULT 'paper',  -- 'paper', 'live', 'suggest_only'
+    confidence_threshold NUMERIC(4, 2) DEFAULT 0.80,
+    risk_per_trade_pct NUMERIC(4, 2) DEFAULT 1.00,
+    daily_max_loss_pct NUMERIC(5, 2) DEFAULT 5.00,
+    weekly_max_loss_pct NUMERIC(5, 2) DEFAULT 10.00,
+    max_concurrent_positions INT DEFAULT 3,
+    scan_interval_seconds INT DEFAULT 60,
+    instruments JSONB DEFAULT '["Volatility 100 Index"]'::jsonb,
+    instrument_modes JSONB DEFAULT '{}'::jsonb,
+    news_blackout_enabled BOOLEAN DEFAULT TRUE,
+    paper_trade_count INT DEFAULT 0,
+    paper_trade_required INT DEFAULT 50,
+    performance_baseline_winrate NUMERIC(5, 2) DEFAULT 0.00,
+    drift_threshold_pct NUMERIC(5, 2) DEFAULT 15.00,
+    is_drift_paused BOOLEAN DEFAULT FALSE,
+    daily_loss_today NUMERIC(12, 2) DEFAULT 0.00,
+    daily_loss_reset_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ====================================================================
+-- TABLE: AUTOPILOT TRADE LOG (Immutable Decision Audit Trail)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS autopilot_trade_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    instrument VARCHAR(64) NOT NULL,
+    timeframe VARCHAR(10) DEFAULT 'H1',
+    direction VARCHAR(10) NOT NULL,     -- 'buy', 'sell', 'hold'
+    confidence NUMERIC(5, 4) DEFAULT 0,
+    action VARCHAR(20) NOT NULL,        -- 'executed', 'skipped', 'paper_logged'
+    reason TEXT,
+    gate_results JSONB DEFAULT '[]'::jsonb,
+    lot_size NUMERIC(8, 2) DEFAULT 0,
+    entry_price NUMERIC(15, 5),
+    stop_loss NUMERIC(15, 5),
+    take_profit NUMERIC(15, 5),
+    signal_snapshot JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for fast lookups
+CREATE INDEX IF NOT EXISTS idx_autopilot_log_user ON autopilot_trade_log(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_autopilot_log_action ON autopilot_trade_log(action, created_at DESC);
+
+-- ====================================================================
+-- TIMESCALEDB: HIGH-FREQUENCY TICK & MARKET DATA HYPERTABLE
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS market_ticks (
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    instrument VARCHAR(64) NOT NULL,
+    bid NUMERIC(15, 5) NOT NULL,
+    ask NUMERIC(15, 5) NOT NULL,
+    spread NUMERIC(10, 5),
+    volume INT DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_ticks_inst_time ON market_ticks(instrument, timestamp DESC);
+ALTER TABLE market_ticks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read market_ticks" ON market_ticks FOR SELECT USING (true);
+CREATE POLICY "Allow public insert market_ticks" ON market_ticks FOR INSERT WITH CHECK (true);
+
+-- To convert to TimescaleDB hypertable when TimescaleDB extension is active:
+-- SELECT create_hypertable('market_ticks', 'timestamp', if_not_exists => TRUE);
+

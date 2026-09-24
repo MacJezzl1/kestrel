@@ -16,6 +16,8 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+    mfa_code: Optional[str] = Field(None, min_length=6, max_length=6, description="6-digit TOTP code if MFA enabled")
+
 
 
 class TokenResponse(BaseModel):
@@ -103,3 +105,49 @@ class AuditLogEntry(BaseModel):
 
 # Resolve forward reference
 TokenResponse.model_rebuild()
+
+
+# --- MFA (TOTP) Schemas ---
+
+class MfaSetupResponse(BaseModel):
+    secret: str = Field(..., description="Base32 TOTP secret")
+    otpauth_url: str = Field(..., description="otpauth:// URL for authenticator QR codes")
+    issuer: str = "Kestrel Trading"
+
+
+class MfaVerifyRequest(BaseModel):
+    code: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$", description="6-digit TOTP code")
+
+
+class MfaStatusResponse(BaseModel):
+    mfa_enabled: bool
+    message: str
+
+
+# --- OAuth2 PKCE (RFC 7636) Schemas ---
+
+class OAuthAuthorizeRequest(BaseModel):
+    client_id: str = Field(..., min_length=1, max_length=128)
+    redirect_uri: str = Field(..., min_length=1, max_length=512)
+    response_type: str = Field(default="code", pattern=r"^code$")
+    code_challenge: str = Field(..., min_length=43, max_length=128, description="Base64URL encoded SHA-256 challenge")
+    code_challenge_method: str = Field(default="S256", pattern=r"^(S256|plain)$")
+    state: Optional[str] = Field(None, max_length=256)
+    scope: Optional[str] = Field("trading", max_length=128)
+
+
+class OAuthTokenRequest(BaseModel):
+    grant_type: str = Field(..., pattern=r"^authorization_code$")
+    code: str = Field(..., min_length=16, max_length=128)
+    redirect_uri: str = Field(..., min_length=1, max_length=512)
+    client_id: str = Field(..., min_length=1, max_length=128)
+    code_verifier: str = Field(..., min_length=43, max_length=128, description="Cryptographic code verifier")
+
+
+class OAuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    refresh_token: Optional[str] = None
+    scope: str = "trading"
+

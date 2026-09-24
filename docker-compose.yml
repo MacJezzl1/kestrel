@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # 1. Kestrel Web API (FastAPI Backend)
+  kestrel-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kestrel_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - MT5_RPC_URL=http://kestrel-mt5:5001
+      - MT5_BRIDGE_SECRET=kestrel-internal-rpc-secret-token
+      - REDIS_URL=redis://kestrel-redis:6379/0
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    depends_on:
+      - kestrel-mt5
+      - kestrel-redis
+    networks:
+      - kestrel-internal
+
+  # 2. MetaTrader 5 Headless Container Service
+  kestrel-mt5:
+    build:
+      context: ./docker/mt5
+      dockerfile: Dockerfile
+    container_name: kestrel_mt5
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+      - "5900:5900" # VNC port for terminal inspection
+    environment:
+      - MT5_BRIDGE_SECRET=kestrel-internal-rpc-secret-token
+    networks:
+      - kestrel-internal
+
+  # 3. Kestrel Modern Next.js Frontend
+  kestrel-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kestrel_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - kestrel-api
+    networks:
+      - kestrel-internal
+
+  # 4. Redis Event Bus & Order Execution Queue
+  kestrel-redis:
+    image: redis:7-alpine
+    container_name: kestrel_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kestrel-internal
+
+networks:
+  kestrel-internal:
+    driver: bridge
+
+volumes:
+  redis_data:

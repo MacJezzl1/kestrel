@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/lib/api';
+import OrderModal from '@/components/OrderModal';
+
 
 interface Candle {
   time: string;
@@ -127,6 +129,8 @@ export default function TerminalPage() {
   const [digits, setDigits] = useState(2);
   const [lotSize, setLotSize] = useState(0.20);
   const [broadcastToClients, setBroadcastToClients] = useState(true);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hoverData, setHoverData] = useState<{ price: number; time: string; x: number; y: number } | null>(null);
@@ -521,6 +525,22 @@ export default function TerminalPage() {
               </button>
             </div>
 
+            <button
+              className="btn btn-ghost"
+              onClick={() => setOrderModalOpen(true)}
+              style={{
+                width: '100%',
+                marginTop: 10,
+                border: '1px solid var(--accent-cyan)',
+                color: 'var(--accent-cyan)',
+                fontWeight: 700,
+                height: 38,
+                fontSize: 12
+              }}
+            >
+              📦 Institutional Bracket Order (Limit / Stop / SL / TP)
+            </button>
+
             {execMsg && (
               <div style={{ color: 'var(--success)', fontSize: 12, marginTop: 10, textAlign: 'center', fontWeight: 600 }}>
                 {execMsg}
@@ -529,6 +549,18 @@ export default function TerminalPage() {
           </div>
         </div>
       </div>
+
+      {/* Bracket Order Modal */}
+      <OrderModal
+        isOpen={orderModalOpen}
+        onClose={() => setOrderModalOpen(false)}
+        defaultInstrument={symbol}
+        defaultPrice={currentPrice}
+        onOrderSuccess={(ord) => {
+          setExecMsg(`Order #${ord.client_order_id.slice(-6)} placed (${ord.direction} ${ord.qty} lots @ ${ord.price || 'Market'})`);
+        }}
+      />
     </div>
   );
 }
+
