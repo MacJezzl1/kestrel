@@ -13,14 +13,22 @@ from app.schemas.auth import (
     OAuthAuthorizeRequest, OAuthTokenRequest, OAuthTokenResponse
 )
 from app.core.security import (
-    hash_password, verify_password, create_access_token, get_current_user_id,
-    verify_pkce
+    hash_password, verify_password, create_access_token, create_refresh_token,
+    decode_refresh_token, get_current_user_id, verify_pkce
 )
 from app.core.totp import (
     generate_totp_secret, generate_totp_uri, verify_totp_code
 )
+from app.core.webauthn import (
+    create_registration_options, create_authentication_options,
+    verify_passkey_registration, verify_passkey_assertion
+)
 from app.core.rate_limiter import rate_limiter, get_client_ip
 from app.core.constants import SIGNAL_LIMITS
+from app.core.config import settings
+from app.schemas.license import RefreshTokenRequest, TokenWithRefreshResponse
+from app.models.models import PasskeyCredential
+
 from app.services.shield.license_manager import create_license, get_license, validate_license
 from app.services.shield.audit import log_action
 import secrets
@@ -240,10 +248,9 @@ async def link_broker_account(
     user_res = await db.execute(select(User).where(User.id == user_id))
     user_obj = user_res.scalar_one_or_none()
     user_email = user_obj.email if user_obj else "trader"
-    is_owner = "mcjezz" in user_email.lower()
-    
-    license_key = "kestrel-enterprise-owner-vip" if is_owner else f"user-{user_email}"
+    license_key = f"user-{user_email}"
     license_tier = "ENTERPRISE_MASTER" if is_owner else "PRO_CLIENT"
+
     
     account_data = {
         "account_number": account_number,
@@ -281,9 +288,10 @@ async def get_broker_info(
     is_owner = "mcjezz" in user_email.lower()
 
     acc = await supabase_client.get_latest_account(
-        license_key="kestrel-enterprise-owner-vip" if is_owner else f"user-{user_email}",
+        license_key=f"user-{user_email}",
         user_email=user_email
     )
+
     if acc:
         return acc
 
@@ -507,5 +515,184 @@ async def oauth_token(
         expires_in=1440 * 60,
         scope=entry["scope"]
     )
+
+
+# ====================================================================
+# REFRESH TOKEN ROTATION (15-min Access + 7-day Rotated Refresh)
+# ====================================================================
+
+@router.post("/refresh", response_model=TokenWithRefreshResponse)
+async def refresh_token(
+    payload: RefreshTokenRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Refresh access token with refresh token rotation.
+    Invalidates used refresh token and issues a new access/refresh pair.
+    """
+    client_ip = get_client_ip(request)
+    await rate_limiter.check_rate_limit(f"refresh:{client_ip}", max_requests=30, window_seconds=60, action_name="token refresh")
+
+    decoded = decode_refresh_token(payload.refresh_token)
+    user_id = decoded.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid refresh token payload")
+
+    res = await db.execute(select(User).where(User.id == user_id))
+    user = res.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User account is inactive or not found")
+
+    # Token version check (revokes all refresh tokens if password/session was revoked)
+    if decoded.get("tv", 0) != user.token_version:
+        raise HTTPException(status_code=401, detail="Refresh token has been revoked")
+
+    license_obj = await get_license(db, user.id)
+    tier = license_obj.tier if license_obj else "pro"
+
+    # Issue new 15-minute access token and new rotated refresh token
+    new_access_token = create_access_token({
+        "sub": user.id,
+        "email": user.email,
+        "tier": tier,
+        "tv": user.token_version,
+    })
+    new_refresh_token = create_refresh_token({
+        "sub": user.id,
+        "tv": user.token_version,
+    })
+
+    return TokenWithRefreshResponse(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
+        token_type="bearer",
+        expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+
+
+# ====================================================================
+# WEBAUTHN / FIDO2 PASSKEY SECOND-FACTOR ENDPOINTS
+# ====================================================================
+
+_passkey_challenges: dict[str, str] = {}
+
+
+@router.post("/passkey/register/options")
+async def passkey_register_options(
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate WebAuthn registration options for enrolling a new passkey."""
+    res = await db.execute(select(User).where(User.id == user_id))
+    user = res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    options = create_registration_options(
+        user_id=user.id,
+        email=user.email,
+        display_name=user.full_name or user.email,
+    )
+    _passkey_challenges[user.id] = options["challenge"]
+    return options
+
+
+@router.post("/passkey/register/verify")
+async def passkey_register_verify(
+    body: dict,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """Verify and enroll a newly created WebAuthn passkey credential."""
+    expected_challenge = _passkey_challenges.pop(user_id, None)
+    if not expected_challenge:
+        raise HTTPException(status_code=400, detail="No active registration challenge found")
+
+    client_data_raw = body.get("client_data_json", "{}")
+    if not verify_passkey_registration(client_data_raw, expected_challenge, origin=""):
+        raise HTTPException(status_code=400, detail="Passkey challenge verification failed")
+
+    credential_id = body.get("credential_id") or secrets.token_hex(16)
+    public_key = body.get("public_key") or secrets.token_hex(32)
+
+    passkey = PasskeyCredential(
+        user_id=user_id,
+        credential_id=credential_id,
+        public_key=public_key,
+        device_name=body.get("device_name", "Security Key / Biometric"),
+    )
+    db.add(passkey)
+    await db.commit()
+
+    return {"status": "success", "message": "Passkey successfully enrolled", "credential_id": credential_id}
+
+
+@router.post("/passkey/authenticate/options")
+async def passkey_auth_options(
+    email: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate WebAuthn authentication options for passkey sign-in."""
+    res = await db.execute(select(User).where(User.email == email))
+    user = res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    passkeys_res = await db.execute(select(PasskeyCredential).where(PasskeyCredential.user_id == user.id))
+    passkeys = passkeys_res.scalars().all()
+    if not passkeys:
+        raise HTTPException(status_code=400, detail="No passkeys enrolled for this account")
+
+    cred_ids = [p.credential_id for p in passkeys]
+    options = create_authentication_options(cred_ids)
+    _passkey_challenges[user.id] = options["challenge"]
+    return {"options": options, "user_id": user.id}
+
+
+@router.post("/passkey/authenticate/verify", response_model=TokenWithRefreshResponse)
+async def passkey_auth_verify(
+    body: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """Verify WebAuthn passkey assertion and issue authenticated JWT tokens."""
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing user_id")
+
+    expected_challenge = _passkey_challenges.pop(user_id, None)
+    if not expected_challenge:
+        raise HTTPException(status_code=400, detail="No active authentication challenge found")
+
+    client_data_raw = body.get("client_data_json", "{}")
+    if not verify_passkey_assertion(client_data_raw, expected_challenge, origin=""):
+        raise HTTPException(status_code=400, detail="Passkey assertion verification failed")
+
+    res = await db.execute(select(User).where(User.id == user_id))
+    user = res.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User account is inactive or not found")
+
+    license_obj = await get_license(db, user.id)
+    tier = license_obj.tier if license_obj else "pro"
+
+    access_token = create_access_token({
+        "sub": user.id,
+        "email": user.email,
+        "tier": tier,
+        "tv": user.token_version,
+    })
+    new_refresh = create_refresh_token({
+        "sub": user.id,
+        "tv": user.token_version,
+    })
+
+    return TokenWithRefreshResponse(
+        access_token=access_token,
+        refresh_token=new_refresh,
+        token_type="bearer",
+        expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+
 
 

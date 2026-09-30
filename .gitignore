@@ -52,3 +52,5 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo
+*.log
+

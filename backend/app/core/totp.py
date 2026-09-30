@@ -1,24 +1,16 @@
 """
-Kestrel Shield — RFC 6238 TOTP Engine
-Pure Python standard library implementation of Time-Based One-Time Passwords (TOTP).
-Compatible with Google Authenticator, Microsoft Authenticator, Authy, and 1Password.
-No external pip dependencies required.
+Kestrel Shield — RFC 6238 TOTP Engine with pyotp
+Supports Google Authenticator, Microsoft Authenticator, Authy, and 1Password.
+Provides secret generation, provisioning URI generation, and time-drift tolerant verification.
 """
-import base64
-import hashlib
-import hmac
-import os
-import secrets
-import struct
-import time
+import pyotp
 import urllib.parse
+from typing import Optional
 
 
-def generate_totp_secret(length: int = 32) -> str:
-    """Generate a secure random Base32 secret string (RFC 3548 / RFC 4648)."""
-    random_bytes = secrets.token_bytes((length * 5 + 7) // 8)
-    secret = base64.b32encode(random_bytes).decode("utf-8").replace("=", "")
-    return secret[:length]
+def generate_totp_secret() -> str:
+    """Generate a standard Base32 TOTP secret string."""
+    return pyotp.random_base32()
 
 
 def generate_totp_uri(secret: str, account_name: str, issuer: str = "Kestrel Trading") -> str:
@@ -36,50 +28,26 @@ def generate_totp_uri(secret: str, account_name: str, issuer: str = "Kestrel Tra
     return f"otpauth://totp/{encoded_label}?{encoded_params}"
 
 
-def generate_totp_code(secret: str, for_time: float | None = None, interval: int = 30, digits: int = 6) -> str:
-    """Compute the current 6-digit TOTP code for a given secret and timestamp."""
-    if for_time is None:
-        for_time = time.time()
-
-    counter = int(for_time // interval)
-    
-    # Pad base32 secret with '=' if necessary
-    padding_needed = (8 - len(secret) % 8) % 8
-    padded_secret = secret.upper() + ("=" * padding_needed)
-    key = base64.b32decode(padded_secret, casefold=True)
-
-    # Counter to 8-byte big-endian
-    msg = struct.pack(">Q", counter)
-
-    # HMAC-SHA1
-    hmac_hash = hmac.new(key, msg, hashlib.sha1).digest()
-
-    # Dynamic truncation (RFC 4226)
-    offset = hmac_hash[-1] & 0x0F
-    binary_code = struct.unpack(">I", hmac_hash[offset : offset + 4])[0] & 0x7FFFFFFF
-
-    # Modulo to get desired digits
-    otp = binary_code % (10**digits)
-    return f"{otp:0{digits}d}"
+def generate_totp_code(secret: str, for_time: Optional[float] = None, interval: int = 30, digits: int = 6) -> str:
+    """Compute current 6-digit TOTP code for testing / verification."""
+    totp = pyotp.TOTP(secret, interval=interval, digits=digits)
+    if for_time is not None:
+        return totp.at(for_time)
+    return totp.now()
 
 
-def verify_totp_code(secret: str, code: str, window: int = 1, interval: int = 30) -> bool:
+def verify_totp_code(secret: str, code: str, window: int = 1, valid_window: Optional[int] = None, interval: int = 30) -> bool:
     """
     Verify a user-provided 6-digit TOTP code.
     Allows clock drift within `window` intervals (window=1 allows ±30 seconds).
+    Supports pyotp verification with backwards-compatible argument names.
     """
     if not secret or not code:
         return False
-
-    code = str(code).strip()
-    if len(code) != 6 or not code.isdigit():
+    code_clean = str(code).strip()
+    if len(code_clean) != 6 or not code_clean.isdigit():
         return False
 
-    now = time.time()
-    for offset in range(-window, window + 1):
-        test_time = now + (offset * interval)
-        expected = generate_totp_code(secret, for_time=test_time, interval=interval, digits=6)
-        if hmac.compare_digest(code, expected):
-            return True
-
-    return False
+    w = valid_window if valid_window is not None else window
+    totp = pyotp.TOTP(secret, interval=interval, digits=6)
+    return bool(totp.verify(code_clean, valid_window=w))

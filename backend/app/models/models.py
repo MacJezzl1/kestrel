@@ -4,7 +4,7 @@ SQLAlchemy models for users, licenses, signals, trades, and audit logs.
 """
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, Text, JSON,
+    Column, String, Integer, BigInteger, Float, Boolean, DateTime, Text, JSON,
     ForeignKey, Enum, Index
 )
 from sqlalchemy.orm import relationship
@@ -27,6 +27,7 @@ class User(Base):
     mfa_enabled = Column(Boolean, default=False)
     mfa_secret = Column(String(64), nullable=True)
     token_version = Column(Integer, default=0, nullable=False)
+    tenant_id = Column(String(64), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -36,7 +37,8 @@ class User(Base):
     trades = relationship("Trade", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")
     api_keys = relationship("ApiKey", back_populates="user")
-
+    passkeys = relationship("PasskeyCredential", back_populates="user")
+    terminals = relationship("MT5Terminal", back_populates="user")
 
 
 class License(Base):
@@ -44,8 +46,13 @@ class License(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False)
-    tier = Column(String(20), default="free", nullable=False)  # free, pro, enterprise
-    status = Column(String(20), default="active", nullable=False)  # active, suspended, expired
+    tenant_id = Column(String(64), nullable=True, index=True)
+    account_login = Column(String(64), nullable=True, index=True)
+    terminal_hash = Column(String(128), nullable=True)
+    tier = Column(String(32), default="starter", nullable=False)  # starter, pro, institutional
+    status = Column(String(20), default="active", nullable=False)  # active, trial, suspended, expired
+    max_risk_per_trade = Column(Float, default=1.0)
+    max_daily_loss_pct = Column(Float, default=5.0)
     signals_used_today = Column(Integer, default=0)
     last_signal_reset = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime, nullable=True)
@@ -54,6 +61,7 @@ class License(Base):
 
     # Relationships
     user = relationship("User", back_populates="license")
+
 
 
 class Signal(Base):
@@ -220,4 +228,197 @@ class AiLog(Base):
 
     # Relationships
     user = relationship("User")
+
+
+class PasskeyCredential(Base):
+    """Registered WebAuthn passkey credentials for biometric / security key MFA."""
+    __tablename__ = "passkey_credentials"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    credential_id = Column(String(255), unique=True, nullable=False, index=True)
+    public_key = Column(Text, nullable=False)
+    sign_count = Column(Integer, default=0)
+    device_name = Column(String(100), default="Passkey")
+    transports = Column(JSON, default=list)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    user = relationship("User", back_populates="passkeys")
+
+
+class MT5Terminal(Base):
+    """Hardware-bound MT5 client terminal reporting heartbeat, account state, and ping latency."""
+    __tablename__ = "mt5_terminals"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(64), nullable=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
+    account_login = Column(String(64), nullable=False, index=True)
+    terminal_hash = Column(String(128), nullable=False, index=True)
+    broker = Column(String(128), nullable=True)
+    server = Column(String(128), nullable=True)
+    currency = Column(String(16), default="USD")
+    leverage = Column(Integer, default=100)
+    balance = Column(Float, default=0.0)
+    equity = Column(Float, default=0.0)
+    margin = Column(Float, default=0.0)
+    free_margin = Column(Float, default=0.0)
+    margin_level = Column(Float, default=0.0)
+    ping_latency_ms = Column(Integer, default=0)
+    regime = Column(String(64), default="REGIME_HYBRID")
+    ea_version = Column(String(32), default="4.00")
+    is_active = Column(Boolean, default=True)
+    last_heartbeat = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    user = relationship("User", back_populates="terminals")
+    positions = relationship("LivePosition", back_populates="terminal", cascade="all, delete-orphan")
+    risk_metric = relationship("RiskMetric", back_populates="terminal", uselist=False, cascade="all, delete-orphan")
+    commands = relationship("RemoteCommand", back_populates="terminal", cascade="all, delete-orphan")
+
+
+class LivePosition(Base):
+    """Snapshot of open MT5 position with live floating PnL and ticket synchronization."""
+    __tablename__ = "live_positions"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(64), nullable=True, index=True)
+    terminal_id = Column(String, ForeignKey("mt5_terminals.id"), nullable=False, index=True)
+    account_login = Column(String(64), nullable=False, index=True)
+    ticket = Column(BigInteger, nullable=False, index=True)
+    magic_number = Column(BigInteger, default=773571)
+    symbol = Column(String(32), nullable=False, index=True)
+    direction = Column(String(16), nullable=False)  # BUY or SELL
+    lots = Column(Float, nullable=False)
+    open_price = Column(Float, nullable=False)
+    current_price = Column(Float, nullable=False)
+    stop_loss = Column(Float, nullable=True)
+    take_profit = Column(Float, nullable=True)
+    floating_pnl = Column(Float, default=0.0)
+    pnl_pips = Column(Float, default=0.0)
+    swap = Column(Float, default=0.0)
+    commission = Column(Float, default=0.0)
+    comment = Column(String(255), nullable=True)
+    open_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    terminal = relationship("MT5Terminal", back_populates="positions")
+
+
+class RiskMetric(Base):
+    """Real-time account risk tracking, daily loss % and prop-firm drawdown circuit breakers."""
+    __tablename__ = "risk_metrics"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(64), nullable=True, index=True)
+    terminal_id = Column(String, ForeignKey("mt5_terminals.id"), unique=True, nullable=False, index=True)
+    account_login = Column(String(64), nullable=False, index=True)
+    starting_equity_day = Column(Float, default=0.0, nullable=False)
+    peak_equity = Column(Float, default=0.0, nullable=False)
+    current_equity = Column(Float, default=0.0, nullable=False)
+    current_balance = Column(Float, default=0.0, nullable=False)
+    daily_loss_pct = Column(Float, default=0.0)
+    max_drawdown_pct = Column(Float, default=0.0)
+    consecutive_losses = Column(Integer, default=0)
+    circuit_breaker_tripped = Column(Boolean, default=False)
+    prop_rule_breach = Column(Boolean, default=False)
+    prop_firm_profile = Column(String(32), default="PROP_NONE")
+    reset_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    terminal = relationship("MT5Terminal", back_populates="risk_metric")
+
+
+class RemoteCommand(Base):
+    """Web-to-MT5 command queue (BUY, SELL, CLOSE, CLOSE_ALL, EMERGENCY_HALT, MODIFY_STOPS)."""
+    __tablename__ = "remote_commands"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(64), nullable=True, index=True)
+    terminal_id = Column(String, ForeignKey("mt5_terminals.id"), nullable=False, index=True)
+    account_login = Column(String(64), nullable=False, index=True)
+    command_type = Column(String(32), nullable=False)  # BUY, SELL, CLOSE, CLOSE_ALL, EMERGENCY_HALT, MODIFY_STOPS
+    symbol = Column(String(32), nullable=True)
+    ticket = Column(BigInteger, nullable=True)
+    lots = Column(Float, nullable=True)
+    price = Column(Float, nullable=True)
+    stop_loss = Column(Float, nullable=True)
+    take_profit = Column(Float, nullable=True)
+    status = Column(String(20), default="PENDING", index=True)  # PENDING, DISPATCHED, EXECUTED, FAILED
+    result = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    executed_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    terminal = relationship("MT5Terminal", back_populates="commands")
+
+
+class CopyTrade(Base):
+    """Multi-client PAMM broadcast log tracking receiver execution, latency, and slippage."""
+    __tablename__ = "copy_trades"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(64), nullable=True, index=True)
+    master_ticket = Column(BigInteger, nullable=False, index=True)
+    master_symbol = Column(String(32), nullable=False)
+    master_direction = Column(String(16), nullable=False)
+    master_lots = Column(Float, nullable=False)
+    receiver_terminal_id = Column(String, ForeignKey("mt5_terminals.id"), nullable=False, index=True)
+    receiver_account = Column(String(64), nullable=False, index=True)
+    receiver_ticket = Column(BigInteger, nullable=True)
+    risk_multiplier = Column(Float, default=1.0)
+    executed_lots = Column(Float, nullable=True)
+    execution_price = Column(Float, nullable=True)
+    slippage_pips = Column(Float, default=0.0)
+    latency_ms = Column(Integer, default=0)
+    status = Column(String(20), default="PENDING", index=True)  # PENDING, EXECUTED, REJECTED, SKIPPED
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    executed_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    receiver_terminal = relationship("MT5Terminal")
+
+
+class NotificationConfig(Base):
+    """User/Tenant notification dispatch configuration for Telegram & Discord webhooks."""
+    __tablename__ = "notification_configs"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(64), nullable=True, index=True)
+    user_id = Column(String(64), nullable=False, index=True)
+    telegram_enabled = Column(Boolean, default=False)
+    telegram_bot_token = Column(String(255), nullable=True)
+    telegram_chat_id = Column(String(128), nullable=True)
+    discord_enabled = Column(Boolean, default=False)
+    discord_webhook_url = Column(Text, nullable=True)
+    alert_trade_signals = Column(Boolean, default=True)
+    alert_prop_firm_risk = Column(Boolean, default=True)
+    alert_circuit_breaker = Column(Boolean, default=True)
+    alert_high_impact_news = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class CopierAccount(Base):
+    """Multi-broker PAMM receiver and master account configuration."""
+    __tablename__ = "copier_accounts"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    tenant_id = Column(String(64), nullable=True, index=True)
+    account_login = Column(String(64), unique=True, nullable=False, index=True)
+    account_name = Column(String(128), nullable=False)
+    broker_profile = Column(String(64), nullable=False)  # FTMO, THE5ERS, FUNDING_PIPS, TOPSTEP, ICMARKETS, DERIV, PEPPERSTONE, EXNESS
+    role = Column(String(20), default="RECEIVER", index=True)  # MASTER or RECEIVER
+    risk_multiplier = Column(Float, default=1.0)
+    max_lot_cap = Column(Float, default=5.0)
+    max_slippage_pips = Column(Float, default=3.0)
+    is_enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

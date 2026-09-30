@@ -1,20 +1,55 @@
 """
-Kestrel Shield — Sliding Window Rate Limiter
-In-memory thread-safe rate limiter protecting sensitive authentication and trading endpoints.
-Implements the OWASP Top 10 recommendations for brute-force and DDoS prevention.
+Kestrel Shield — Multi-Tier Rate Limiting
+Combines SlowAPI (token bucket / fixed window) for FastAPI route decorators
+with in-memory Sliding Window Limiter for per-account granular checks.
+Implements OWASP recommendations for brute-force, DDoS, and API protection.
 """
 from collections import defaultdict
-from datetime import datetime, timezone
+from typing import Optional
 import asyncio
 import time
 from fastapi import Request, HTTPException, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+
+def get_client_ip(request: Request) -> str:
+    """Extract real client IP considering forward headers (Cloudflare, AWS WAF, Nginx)."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    if request.client:
+        return request.client.host
+    return "127.0.0.1"
+
+
+def get_rate_limit_key(request: Request) -> str:
+    """
+    Generate rate limit identifier combining Account/User (if authenticated) and IP.
+    """
+    account_header = request.headers.get("X-Account-ID") or request.headers.get("X-API-Key")
+    ip = get_client_ip(request)
+    if account_header:
+        return f"acc:{account_header[:16]}:{ip}"
+    return f"ip:{ip}"
+
+
+# Global SlowAPI Limiter instance
+limiter = Limiter(
+    key_func=get_rate_limit_key,
+    default_limits=["120/minute"],
+    headers_enabled=True,
+    storage_uri="memory://",
+)
 
 
 class SlidingWindowRateLimiter:
     """Sliding-window counter rate limiter by client IP or User ID."""
 
     def __init__(self):
-        # key -> list of timestamps (seconds)
         self._history = defaultdict(list)
         self._lock = asyncio.Lock()
 
@@ -33,7 +68,6 @@ class SlidingWindowRateLimiter:
         cutoff = now - window_seconds
 
         async with self._lock:
-            # Clean expired timestamps
             timestamps = [t for t in self._history[key] if t > cutoff]
             if len(timestamps) >= max_requests:
                 retry_after = int(window_seconds - (now - timestamps[0])) + 1
@@ -43,24 +77,9 @@ class SlidingWindowRateLimiter:
                     headers={"Retry-After": str(max(1, retry_after))},
                 )
 
-            # Record this request
             timestamps.append(now)
             self._history[key] = timestamps
             return True
 
 
-# Global rate limiter instance
 rate_limiter = SlidingWindowRateLimiter()
-
-
-def get_client_ip(request: Request) -> str:
-    """Extract real client IP considering forward headers (Cloudflare, AWS WAF, Nginx)."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    real_ip = request.headers.get("x-real-ip")
-    if real_ip:
-        return real_ip.strip()
-    if request.client:
-        return request.client.host
-    return "127.0.0.1"

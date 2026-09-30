@@ -21,7 +21,7 @@ export default function MfaModal({ isOpen, onClose, onMfaChanged }: MfaModalProp
 
   const fetchStatus = async () => {
     try {
-      const token = localStorage.getItem('kestrel_token') || 'kestrel-enterprise-owner-vip';
+      const token = localStorage.getItem('kestrel_token') || '';
       const res = await fetch('/api/auth/mfa/status', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -46,7 +46,7 @@ export default function MfaModal({ isOpen, onClose, onMfaChanged }: MfaModalProp
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('kestrel_token') || 'kestrel-enterprise-owner-vip';
+      const token = localStorage.getItem('kestrel_token') || '';
       const res = await fetch('/api/auth/mfa/setup', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -67,7 +67,7 @@ export default function MfaModal({ isOpen, onClose, onMfaChanged }: MfaModalProp
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('kestrel_token') || 'kestrel-enterprise-owner-vip';
+      const token = localStorage.getItem('kestrel_token') || '';
       const res = await fetch('/api/auth/mfa/enable', {
         method: 'POST',
         headers: {
@@ -96,7 +96,7 @@ export default function MfaModal({ isOpen, onClose, onMfaChanged }: MfaModalProp
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('kestrel_token') || 'kestrel-enterprise-owner-vip';
+      const token = localStorage.getItem('kestrel_token') || '';
       const res = await fetch('/api/auth/mfa/disable', {
         method: 'POST',
         headers: {

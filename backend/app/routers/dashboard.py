@@ -67,9 +67,10 @@ async def get_dashboard_summary(
     try:
         from app.db.supabase_client import supabase_client
         sb_acc = await supabase_client.get_latest_account(
-            license_key="kestrel-enterprise-owner-vip" if is_owner else f"user-{user_email}",
+            license_key=f"user-{user_email}",
             user_email=user_email
         )
+
         if sb_acc:
             live_bal = float(sb_acc.get("balance", 0.0))
             live_eq = float(sb_acc.get("equity", 0.0))

@@ -7,19 +7,21 @@ import { useAuth } from '@/lib/auth';
 import AiChatDrawer from '@/components/AiChatDrawer';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { href: '/autopilot', label: 'Autopilot', icon: '🤖' },
+  { href: '/dashboard', label: 'Unified Cockpit', icon: '📊' },
+  { href: '/backtest', label: 'Backtest Playground', icon: '🧪' },
+  { href: '/copier', label: 'PAMM / Copy Hub', icon: '🔄' },
+  { href: '/analytics', label: 'Portfolio Analytics', icon: '📈' },
   { href: '/terminal', label: 'AI Sniper Live', icon: '🎯' },
-  { href: '/clients', label: 'Client Hub (5)', icon: '👥' },
-  { href: '/signals', label: 'Signals', icon: '📡' },
+  { href: '/autopilot', label: 'Autopilot Swarm', icon: '🤖' },
+  { href: '/signals', label: 'Signals Feed', icon: '📡' },
   { href: '/trades', label: 'Trade History', icon: '📋' },
-  { href: '/analysis', label: 'Analysis', icon: '🔬' },
-  { href: '/vision', label: 'Chart Vision', icon: '👁️' },
+  { href: '/vision', label: 'Chart Vision Scanner', icon: '👁️' },
 ];
 
 const bottomItems = [
-  { href: '/security', label: 'Security', icon: '🔐' },
-  { href: '/settings', label: 'Settings', icon: '⚙️' },
+  { href: '/license', label: 'License & Tiers', icon: '💳' },
+  { href: '/security', label: 'Security & 2FA', icon: '🔐' },
+  { href: '/settings', label: 'Settings & MT5', icon: '⚙️' },
 ];
 
 export default function Sidebar() {

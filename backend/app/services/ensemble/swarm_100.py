@@ -15,7 +15,7 @@ from app.core.constants import (
     REGIME_TRENDING, REGIME_RANGING, REGIME_VOLATILE
 )
 
-# 6 Swarm Categories (20 Models in Each = 120 Models Total)
+# 6 Swarm Categories (30 Models in Each = 180 Models Total)
 SWARM_CATEGORIES = {
     "MACRO_GEOPOLITICAL": [
         "macro_dxy_momentum", "macro_yield_curve_spread", "macro_fed_funds_rate_delta",
@@ -24,7 +24,11 @@ SWARM_CATEGORIES = {
         "macro_liquidity_fed_balance_sheet", "macro_trade_balance_flow", "macro_ecb_boe_divergence",
         "macro_boj_ycc_intervention_risk", "macro_sovereign_credit_spread", "macro_emerging_market_contagion",
         "macro_shipping_baltic_dry", "macro_copper_gold_ratio", "macro_high_yield_bond_risk",
-        "macro_interbank_repo_stress", "macro_geopolitical_risk_index"
+        "macro_interbank_repo_stress", "macro_geopolitical_risk_index",
+        "macro_central_bank_gold_reserves", "macro_brics_currency_flow", "macro_real_interest_rate_gap",
+        "macro_eurodollar_futures_curve", "macro_global_m2_liquidity_pulse", "macro_commodity_terms_of_trade",
+        "macro_debt_to_gdp_threshold_model", "macro_safe_haven_chf_jpy_flow", "macro_petrodollar_recycling_pulse",
+        "macro_forward_guidance_dispersion"
     ],
     "PRICE_ACTION_MICRO": [
         "pa_order_block_h4", "pa_order_block_h1", "pa_fair_value_gap_m15",
@@ -33,7 +37,11 @@ SWARM_CATEGORIES = {
         "pa_wyckoff_accumulation_phase", "pa_wyckoff_distribution_phase", "pa_supply_zone_freshness",
         "pa_demand_zone_freshness", "pa_rejection_wick_ratio", "pa_inside_bar_breakout",
         "pa_pinbar_confluence", "pa_equal_highs_lows_target", "pa_session_open_sweep_london",
-        "pa_session_open_sweep_ny", "pa_killzone_expansion_flow"
+        "pa_session_open_sweep_ny", "pa_killzone_expansion_flow",
+        "pa_premium_discount_equilibrium", "pa_change_of_character_choch", "pa_displacement_volume_filter",
+        "pa_asian_range_liquidity_purge", "pa_previous_day_high_low_rejection", "pa_inversion_fvg_flip",
+        "pa_balanced_price_range_bpr", "pa_relative_equal_highs_lows_eqh", "pa_institutional_inducement_sweep",
+        "pa_volume_imbalance_vi_resolver"
     ],
     "STAT_ARB_QUANT": [
         "quant_kalman_filter_state", "quant_hurst_exponent_fractal", "quant_ornstein_uhlenbeck_mreversion",
@@ -42,7 +50,11 @@ SWARM_CATEGORIES = {
         "quant_entropy_shannon_disorder", "quant_half_life_mean_reversion", "quant_pca_eigen_factor",
         "quant_copula_tail_dependence", "quant_fibonacci_dynamic_grid", "quant_fourier_cycle_analysis",
         "quant_wavelet_denoised_trend", "quant_autocorrelation_lag_detector", "quant_monte_carlo_path_projection",
-        "quant_var_cvar_tail_risk", "quant_liquidity_blackhole_detector"
+        "quant_var_cvar_tail_risk", "quant_liquidity_blackhole_detector",
+        "quant_fractional_differentiation", "quant_hidden_markov_model_3state", "quant_spectral_density_filter",
+        "quant_bayesian_structural_time_series", "quant_hurst_multiscale_dwt", "quant_spectral_entropy_burst",
+        "quant_vector_autoregression_var", "quant_johansen_cointegration_vector", "quant_dynamic_conditional_correlation",
+        "quant_leverage_adjusted_sharpe_opt"
     ],
     "MOMENTUM_FLOW": [
         "mom_ema_triple_ribbon", "mom_supertrend_multi_tf", "mom_ichimoku_kumo_cloud_break",
@@ -51,7 +63,11 @@ SWARM_CATEGORIES = {
         "mom_kaufman_adaptive_ma", "mom_parabolic_sar_reversal", "mom_stochastic_rsi_extremes",
         "mom_donchian_breakout_channel", "mom_trix_triple_exponential", "mom_awesome_oscillator_twin_peaks",
         "mom_volume_weighted_vwap_dev", "mom_elder_ray_bull_bear_power", "mom_aroon_up_down_cycle",
-        "mom_chande_momentum_oscillator", "mom_linear_regression_slope"
+        "mom_chande_momentum_oscillator", "mom_linear_regression_slope",
+        "mom_acceleration_bands_breakout", "mom_fisher_transform_extremes", "mom_commodity_channel_index_cci",
+        "mom_twap_institutional_benchmark", "mom_detrended_price_oscillator", "mom_mass_index_reversal_bulge",
+        "mom_schaff_trend_cycle_stc", "mom_ulcer_index_low_stress", "mom_coppock_curve_cyclical_turn",
+        "mom_true_strength_index_tsi"
     ],
     "SENTIMENT_REASONING": [
         "sent_finbert_fx_news_parser", "sent_social_sentiment_aggregator", "sent_central_bank_speech_tone",
@@ -60,7 +76,11 @@ SWARM_CATEGORIES = {
         "sent_options_put_call_ratio", "sent_analyst_consensus_drift", "sent_economic_calendar_impact",
         "sent_high_frequency_tick_entropy", "sent_deepseek_reasoner_agent", "sent_qwen_quant_agent",
         "sent_llama_macro_analyst", "sent_gemma_signal_auditor", "sent_mistral_risk_controller",
-        "sent_claude_pattern_verifier", "sent_gpt4o_consensus_arbiter"
+        "sent_claude_pattern_verifier", "sent_gpt4o_consensus_arbiter",
+        "sent_bloomberg_headline_nlp", "sent_sec_13f_institutional_flow", "sent_options_gamma_exposure_gex",
+        "sent_liquidity_taker_maker_ratio", "sent_cot_commercial_hedger_bias", "sent_sentiment_divergence_delta",
+        "sent_cross_asset_risk_appetite", "sent_emerging_market_carry_sentiment", "sent_vix_term_structure_contango",
+        "sent_macro_ai_quorum_synthesis"
     ],
     "SYNTHETIC_DERIV_QUANT": [
         "deriv_poisson_spike_arrival_crash", "deriv_poisson_spike_arrival_boom", "deriv_volatility_1s_clustering",
@@ -69,16 +89,20 @@ SWARM_CATEGORIES = {
         "deriv_adaptive_kalman_tick_denoiser", "deriv_liquidity_void_hunter", "deriv_tick_hurst_exponent",
         "deriv_continuous_martingale_shield", "deriv_subsecond_spread_arbiter", "deriv_vol_75_fractal_dimension",
         "deriv_vol_100_spike_decay_rate", "deriv_crash_300_reversal_matrix", "deriv_boom_1000_accumulation",
-        "deriv_instantaneous_trend_filter", "deriv_quantum_synthetic_optima"
+        "deriv_instantaneous_trend_filter", "deriv_quantum_synthetic_optima",
+        "deriv_crash_500_cluster_decay", "deriv_boom_500_rebound_probability", "deriv_vol_25_drift_equilibrium",
+        "deriv_vol_50_high_frequency_burst", "deriv_step_200_quantum_jump", "deriv_range_100_breakout_velocity",
+        "deriv_jump_50_volatility_inversion", "deriv_tick_order_flow_imbalance", "deriv_synthetic_brownian_bridge",
+        "deriv_volatility_drift_regime_switch"
     ]
 }
 
 
-class Swarm100Engine:
+class Swarm180Engine:
     """
-    Kestrel 100-AI Swarm Consensus Engine v4.0.
-    Deterministic, rule-grounded quantitative models that synthesize technicals,
-    order flow, market regime, session characteristics, and horizon estimation.
+    Kestrel 180-AI Swarm Consensus Intelligence System v4.0.
+    Deterministic, rule-grounded quantitative models that synthesize macro-geopolitics,
+    order flow, price action SMC, statistical arbitrage, momentum, and synthetic deriv math.
     """
 
     def __init__(self):
@@ -382,7 +406,7 @@ class Swarm100Engine:
             "recovery_metrics": recovery,
             "metadata_extra": {
                 "generated_at": now_dt.isoformat(),
-                "capechain_engine": "Kestrel-100-Swarm-v4.0",
+                "capechain_engine": "Kestrel-180-Swarm-v4.0",
                 "consensus_strength": f"{consensus_pct}% ({total_buy_votes if direction == SIGNAL_BUY else total_sell_votes}/{self.total_models} AI Models Agreed)",
                 "holding_horizon": holding_time_estimate,
                 "reasoning": reasoning_text
@@ -390,5 +414,6 @@ class Swarm100Engine:
         }
 
 
-# Singleton instance
-swarm_engine = Swarm100Engine()
+# Singleton instance & backward-compatible aliases
+swarm_engine = Swarm180Engine()
+Swarm100Engine = Swarm180Engine

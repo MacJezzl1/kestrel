@@ -178,10 +178,11 @@ class SupabaseClient:
             
         try:
             params = {"select": "*", "order": "updated_at.desc", "limit": "1"}
-            if license_key and license_key != "kestrel-enterprise-owner-vip":
+            if license_key:
                 params["license_key"] = f"eq.{license_key}"
-            elif user_email and "mcjezz" not in user_email.lower():
+            elif user_email:
                 params["license_key"] = f"eq.user-{user_email}"
+
 
             async with httpx.AsyncClient(timeout=6.0) as client:
                 res = await client.get(

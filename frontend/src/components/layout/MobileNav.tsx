@@ -6,23 +6,26 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { href: '/terminal', label: 'Sniper', icon: '🎯' },
-  { href: '/clients', label: 'Clients', icon: '👥' },
-  { href: '/signals', label: 'Signals', icon: '📡' },
-  { href: '/vision', label: 'Vision', icon: '👁️' },
+  { href: '/dashboard', label: 'Cockpit', icon: '📊' },
+  { href: '/backtest', label: 'Backtest', icon: '🧪' },
+  { href: '/copier', label: 'Copier', icon: '🔄' },
+  { href: '/analytics', label: 'Analytics', icon: '📈' },
+  { href: '/license', label: 'License', icon: '💳' },
 ];
 
 const allNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { href: '/dashboard', label: 'Unified Cockpit', icon: '📊' },
+  { href: '/backtest', label: 'Backtest Playground', icon: '🧪' },
+  { href: '/copier', label: 'PAMM / Copy Hub', icon: '🔄' },
+  { href: '/analytics', label: 'Portfolio Analytics', icon: '📈' },
   { href: '/terminal', label: 'AI Sniper Live Chart', icon: '🎯' },
-  { href: '/clients', label: 'Multi-Client Copy Hub (5)', icon: '👥' },
-  { href: '/signals', label: 'AI Signals', icon: '📡' },
+  { href: '/autopilot', label: 'Autopilot Swarm', icon: '🤖' },
+  { href: '/signals', label: 'AI Signals Feed', icon: '📡' },
   { href: '/trades', label: 'Trade History', icon: '📋' },
-  { href: '/analysis', label: 'Portfolio Analysis', icon: '🔬' },
   { href: '/vision', label: 'Chart Vision Scanner', icon: '👁️' },
-  { href: '/security', label: 'Security & Audit', icon: '🔐' },
-  { href: '/settings', label: 'Settings & License', icon: '⚙️' },
+  { href: '/license', label: 'License & Tiers', icon: '💳' },
+  { href: '/security', label: 'Security & 2FA', icon: '🔐' },
+  { href: '/settings', label: 'Settings & MT5', icon: '⚙️' },
 ];
 
 export default function MobileNav() {

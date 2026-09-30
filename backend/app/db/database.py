@@ -42,28 +42,27 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-        # Lightweight migration: add token_version to users if missing
-        try:
-            await conn.execute(text(
-                "ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"
-            ))
-        except Exception:
-            pass  # Column already exists
+        # Lightweight migrations for SQLite
+        migration_statements = [
+            "ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(64)",
+            "ALTER TABLE users ADD COLUMN tenant_id VARCHAR(64)",
+            "ALTER TABLE licenses ADD COLUMN tenant_id VARCHAR(64)",
+            "ALTER TABLE licenses ADD COLUMN account_login VARCHAR(64)",
+            "ALTER TABLE licenses ADD COLUMN terminal_hash VARCHAR(128)",
+            "ALTER TABLE licenses ADD COLUMN max_risk_per_trade FLOAT DEFAULT 1.0",
+            "ALTER TABLE licenses ADD COLUMN max_daily_loss_pct FLOAT DEFAULT 5.0",
+            "ALTER TABLE trades ADD COLUMN tenant_id VARCHAR(64)",
+            "ALTER TABLE orders ADD COLUMN tenant_id VARCHAR(64)",
+            "ALTER TABLE signals ADD COLUMN tenant_id VARCHAR(64)",
+        ]
 
-        # Lightweight migration: add mfa_enabled and mfa_secret to users if missing
-        try:
-            await conn.execute(text(
-                "ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT 0"
-            ))
-        except Exception:
-            pass
-
-        try:
-            await conn.execute(text(
-                "ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(64)"
-            ))
-        except Exception:
-            pass
+        for stmt in migration_statements:
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                pass  # Column already exists or table handles it
 
 
 

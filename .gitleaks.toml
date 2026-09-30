@@ -1,0 +1,32 @@
+title = "Kestrel Secret Leak Prevention"
+
+[extend]
+useDefault = true
+
+[[rules]]
+description = "Supabase API Key / Token"
+id = "supabase-api-key"
+regex = '''(?i)(?:supabase|sb_publishable|sb_secret|sbp)_[a-zA-Z0-9_\-]{20,}'''
+secretGroup = 0
+keywords = ["supabase", "sb_publishable", "sb_secret", "sbp_"]
+
+[[rules]]
+description = "Kestrel Hardcoded Adapter Secret"
+id = "kestrel-adapter-secret"
+regex = '''mt5-adapter-secret-change-me'''
+keywords = ["mt5-adapter-secret"]
+
+[[rules]]
+description = "Kestrel Enterprise VIP Token"
+id = "kestrel-vip-token"
+regex = '''kestrel-enterprise-owner-vip'''
+keywords = ["kestrel-enterprise-owner-vip"]
+
+[allowlist]
+description = "Allowlist documentation and example env files"
+paths = [
+  '''^\.env\.example$''',
+  '''^backend/\.env\.example$''',
+  '''^scripts/scan_secrets\.py$''',
+  '''^\.gitleaks\.toml$'''
+]

@@ -86,7 +86,7 @@ function MfaPanel() {
 
   useEffect(() => {
     fetch('/api/auth/mfa/status', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('kestrel_token') || 'kestrel-enterprise-owner-vip'}` }
+      headers: { Authorization: `Bearer ${localStorage.getItem('kestrel_token') || ''}` }
     })
       .then(res => res.json())
       .then(d => setMfaEnabled(!!d.mfa_enabled))
@@ -98,7 +98,7 @@ function MfaPanel() {
     setError(null);
     try {
       const res = await fetch('/api/auth/mfa/setup', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('kestrel_token') || 'kestrel-enterprise-owner-vip'}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('kestrel_token') || ''}` }
       });
       const data = await res.json();
       setSecret(data.secret);
@@ -119,10 +119,11 @@ function MfaPanel() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('kestrel_token') || 'kestrel-enterprise-owner-vip'}`
+          Authorization: `Bearer ${localStorage.getItem('kestrel_token') || ''}`
         },
         body: JSON.stringify({ code })
       });
+
       if (!res.ok) throw new Error('Invalid 6-digit TOTP code');
       setMfaEnabled(true);
       setSuccess('Two-factor authentication successfully enabled!');

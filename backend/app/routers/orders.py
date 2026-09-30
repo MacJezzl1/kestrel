@@ -83,6 +83,20 @@ async def submit_order(
     client_ip = get_client_ip(request)
     await rate_limiter.check_rate_limit(f"orders:{client_ip}", max_requests=30, window_seconds=60, action_name="order submission")
 
+    # 0. Mandatory 2FA Check for Live Trade Execution
+    user_res = await db.execute(select(User).where(User.id == user_id))
+    user_obj = user_res.scalar_one_or_none()
+    if user_obj and not user_obj.mfa_enabled:
+        is_paper = request.headers.get("X-Paper-Trading") == "true" or req.account_number == "paper"
+        if not is_paper and not getattr(user_obj, "is_demo", False):
+            # Check if TOTP code provided in header or raise mandatory 2FA required
+            totp_header = request.headers.get("X-TOTP-Code") or request.headers.get("X-2FA-Code")
+            if not totp_header:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Two-factor authentication (2FA) is mandatory for live trade execution. Please enable TOTP 2FA in /settings/security.",
+                )
+
     # 1. Idempotency Check: Verify if order was already submitted
     existing_order = await db.execute(
         select(Order).where(Order.client_order_id == req.client_order_id)

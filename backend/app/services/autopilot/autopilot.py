@@ -479,10 +479,8 @@ class AutopilotEngine:
         """Fetch live account equity, recovery level, and open position count."""
         try:
             from app.db.supabase_client import supabase_client
-            acc = await supabase_client.get_latest_account(
-                license_key="kestrel-enterprise-owner-vip",
-                user_email=""
-            )
+            acc = await supabase_client.get_latest_account()
+
             if acc:
                 return {
                     "equity": float(acc.get("equity", 10000.0)),

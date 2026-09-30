@@ -1,0 +1,23 @@
+{
+  "name": "Kestrel Institutional Trading Platform",
+  "short_name": "Kestrel AI",
+  "description": "Cross-platform institutional AI algorithmic trading intelligence & Prop-Firm risk engine",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#060a14",
+  "theme_color": "#00e5ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/kestrel-logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/kestrel-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ],
+  "categories": ["finance", "productivity", "utilities"]
+}

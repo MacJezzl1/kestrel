@@ -42,7 +42,8 @@ export default function OrderModal({
     const clientOrderId = `ord_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     try {
-      const token = localStorage.getItem('kestrel_token') || 'kestrel-enterprise-owner-vip';
+      const token = localStorage.getItem('kestrel_token') || '';
+
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: {

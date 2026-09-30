@@ -17,9 +17,16 @@ services:
       - REDIS_URL=redis://kestrel-redis:6379/0
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - PROMETHEUS_ENABLED=true
+      - SENTRY_DSN=${SENTRY_DSN:-}
     depends_on:
-      - kestrel-mt5
       - kestrel-redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - kestrel-internal
 
@@ -63,6 +70,49 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - kestrel-internal
+
+  # 5. Prometheus Metrics Aggregator
+  kestrel-prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: kestrel_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      - kestrel-api
+    networks:
+      - kestrel-internal
+
+  # 6. Grafana Observability Dashboards
+  kestrel-grafana:
+    image: grafana/grafana:10.3.0
+    container_name: kestrel_grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - kestrel-prometheus
     networks:
       - kestrel-internal
 
@@ -72,3 +122,5 @@ networks:
 
 volumes:
   redis_data:
+  prometheus_data:
+  grafana_data:

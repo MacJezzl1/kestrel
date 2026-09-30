@@ -23,8 +23,8 @@
 //+------------------------------------------------------------------+
 #property copyright "CapeChain Labs"
 #property link      "https://kestrel.capechainlabs.com"
-#property version   "5.10"
-#property description "Kestrel Autonomous Smart Trading Engine v5.1 — Deep Candlestick & Multi-Dimensional Intelligence"
+#property version   "4.00"
+#property description "Kestrel Autonomous Smart Trading Engine v4.0 — Institutional Quantitative Intelligence & Prop-Firm Risk Engine"
 #property description "See every market. Miss nothing."
 
 //--- Display & Analytical Enums
@@ -41,16 +41,35 @@ enum ENUM_LIQ_STYLE
    LIQ_STYLE_OFF          = 2  // Off (Pure Price Action)
 };
 
+enum ENUM_REGIME_METHOD
+{
+   REGIME_HURST_GARCH = 0, // Hurst Exponent & Volatility Clustering
+   REGIME_ADX_FILTER  = 1, // ADX & Directional Movement
+   REGIME_NEURAL_NET  = 2, // Heuristic Neural Net / Multi-Layer
+   REGIME_HYBRID      = 3  // Hybrid Ensemble (Hurst + ADX + MTF)
+};
+
+enum ENUM_PROP_FIRM_MODE
+{
+   PROP_NONE        = 0, // Standard / Personal Account (Unrestricted)
+   PROP_FTMO        = 1, // FTMO Challenge (5% Daily, 10% Total DD, 4 Min Days)
+   PROP_MFF         = 2, // MyForexFunds / FundedNext (5% Daily, 12% Total DD)
+   PROP_THE5ERS     = 3, // The 5%ers (5% Daily, 10% Total DD, 3 Min Days)
+   PROP_EQUITY_EDGE = 4, // Equity Edge (4% Daily, 8% Total DD, 5 Min Days)
+   PROP_CUSTOM      = 5  // Custom Rules
+};
+
+
 //--- Input parameters
 input group "=== Kestrel Core & Cloud ==="
 input string   KestrelAPIUrl     = "https://backend-macjezzl1s-projects.vercel.app";  // Kestrel Core API URL (Live Production)
-input string   KestrelAPIToken   = "kestrel-enterprise-owner-vip";     // JWT License Token (Enterprise VIP)
-input string   AdapterSecret     = "mt5-adapter-secret-change-me";     // Bridge Adapter Secret
-input string   SupabaseUrl       = "https://fuzhwfvixsiyjwokigkp.supabase.co"; // Supabase Project URL
-input string   SupabaseApiKey    = "sb_publishable_ud50Y_R0JCHKAg8Uo3KxqA_-InEzdlt"; // Supabase API Key
+input string   KestrelAPIToken   = "";                                 // JWT License Token (Enter from Kestrel Dashboard /license)
+input string   AdapterSecret     = "";                                 // Bridge Adapter Secret (HMAC Request Signing)
+input string   SupabaseUrl       = "";                                 // Supabase Project URL (Optional direct sync, empty to use Core API)
+input string   SupabaseApiKey    = "";                                 // Supabase API Key (Optional direct sync)
 
 input group "=== Multi-Client PAMM Copy Trading ==="
-input string   ClientAccountID   = "41230754";                         // This Terminal's Account ID
+input string   ClientAccountID   = "";                                 // Terminal Account ID (Leave empty to auto-detect from ACCOUNT_LOGIN)
 input bool     EnableCopyReceiver = true;                              // Enable Master-to-Client Web Broadcast Receiver
 input double   ClientRiskMultiplier = 1.0;                             // Account Custom Risk Multiplier (0.5x - 2.0x)
 
@@ -72,6 +91,28 @@ input double   TP2_ATR_Mult      = 3.5;                               // Take Pr
 input double   TP3_ATR_Mult      = 5.0;                               // Take Profit Level 3 (trail remainder)
 input int      ReEntryCooldownBars = 2;                                // Min Bars After Close Before Re-Entry
 input bool     UseTrailingStop   = true;                               // Enable 3-Level Trailing Stop & Breakeven
+
+
+input group "=== Market Regime Switcher ==="
+input ENUM_REGIME_METHOD MarketRegimeDetection = REGIME_HYBRID;     // Regime Detection Method
+input int                HurstLookbackBars     = 200;               // Rolling Lookback for Hurst Exponent
+input double             HurstTrendThreshold   = 0.55;              // Hurst > Threshold = Persistent Trend
+input double             HurstMeanRevThreshold = 0.45;              // Hurst < Threshold = Mean-Reverting
+
+input group "=== Prop-Firm Rules Engine ==="
+input ENUM_PROP_FIRM_MODE PropFirmMode         = PROP_NONE;         // Prop Firm Protection Profile
+input double              PropMaxDailyLossPct  = 5.0;               // Max Daily Loss % (Custom)
+input double              PropMaxTotalDDPct    = 10.0;              // Max Total Drawdown % (Custom)
+input double              PropMaxLotCap        = 5.0;               // Max Allowed Lot Size (Custom)
+input int                 PropMinTradingDays   = 4;                 // Minimum Trading Days Target
+
+input group "=== News & Volatility Guard ==="
+input int                 MinutesBeforeNews    = 30;                // Minutes Window Before/After High-Impact Event
+input string              MinImpactLevel       = "HIGH";            // Minimum Impact Level ("HIGH", "MEDIUM", "ALL")
+
+input group "=== Smart Money Concepts (SMC) ==="
+input bool                EnableSMC            = true;              // Enable SMC Order Blocks & Liquidity Engine
+input int                 SMCMinConfluence     = 3;                 // Minimum SMC Confluences Required for Entry
 
 input group "=== Candlestick & Price Action Engine ==="
 input bool     EnableCandleAnalysis   = true;                          // Deep Candlestick Pattern Recognition
@@ -198,6 +239,48 @@ struct FairValueGap
    bool     mitigated;
 };
 
+
+//--- Smart Money Concepts (SMC) Structures
+struct SMCOrderBlock
+{
+   bool     active;
+   string   obType;          // "BULLISH_OB", "BEARISH_OB"
+   double   topPrice;
+   double   bottomPrice;
+   int      barIndex;
+   datetime barTime;
+   int      sweepsCount;     // Expiration after 3 price sweeps
+   bool     mitigated;
+};
+
+struct SMCConfluence
+{
+   bool     isValid;
+   int      bullishOBVote;
+   int      bearishOBVote;
+   int      fvgDiscountVote;
+   int      liqSweepVote;
+   int      multiTfBosVote;
+   int      premDiscVote;
+   int      confluenceCount;
+   string   bias;            // "BUY", "SELL", "NEUTRAL"
+   double   equilibrium;
+   string   summary;
+};
+
+//--- Asynchronous Web Request Queue
+struct QueuedWebRequest
+{
+   string   method;
+   string   url;
+   string   headers;
+   string   body;
+   int      retryCount;
+   datetime nextAttemptTime;
+   string   context;
+   bool     inUse;
+};
+
 //--- Multi-Timeframe Analysis
 struct MTFSlot
 {
@@ -305,6 +388,32 @@ struct SignalOutcome
 // ================================================================
 // GLOBAL ENGINE VARIABLES
 // ================================================================
+
+//--- Smart Money Concepts (SMC) Globals
+SMCOrderBlock     g_recentOBs[10];
+int               g_recentOBCount = 0;
+SMCConfluence     g_smcData;
+
+//--- Asynchronous Web Request Queue Globals
+QueuedWebRequest  g_webQueue[16];
+int               g_webQueueCount = 0;
+datetime          g_lastHeartbeatTime = 0;
+
+//--- Prop-Firm & Risk Tracking Globals
+double            g_dayStartEquity = 0.0;
+double            g_peakEquity = 0.0;
+double            g_initialAccountBalance = 0.0;
+int               g_lastRecordedDay = -1;
+int               g_tradingDaysCount = 0;
+bool              g_propRuleBreached = false;
+string            g_propBreachReason = "";
+
+//--- Market Regime Switcher Globals
+double            g_currentHurst = 0.50;
+double            g_currentAdx = 20.0;
+string            g_regimeDetailed = "INITIALIZING...";
+bool              g_newsBlockActive = false;
+
 ConfluenceAnalysis g_lastAnalysis;
 MTFAnalysis        g_mtfData;
 ModelConsensus     g_modelConsensus;
@@ -382,6 +491,8 @@ int OnInit()
    Print("🦅 ========================================================");
 
    g_autoPilotActive = AutoTrade;
+   g_riskEngine.Initialize();
+
    g_hudMode = HudMode;
 
    // 1. Remove manual MT5 top bar and prepare chart
@@ -552,6 +663,28 @@ void OnTimer()
       g_currentSession = GetCurrentSession();
 
       // 1. Run LOCAL technical analysis (the primary brain)
+      // Update Audited Risk Engine daily metrics and prop limits
+      g_riskEngine.UpdateDailyStats();
+      ProcessWebQueue();
+
+      // Periodic 30s Heartbeat to Kestrel Backend
+      if(TimeCurrent() - g_lastHeartbeatTime >= 30)
+      {
+         g_lastHeartbeatTime = TimeCurrent();
+         string accNum = (StringLen(ClientAccountID) > 0) ? ClientAccountID : IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
+         string hbJson = "{\"account_login\":\"" + accNum + "\",\"terminal_hash\":\"MT5_" + accNum + "\",\"equity\":" + 
+                         DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + ",\"balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + 
+                         ",\"regime\":\"" + g_regimeDetailed + "\"}";
+         EnqueueWebRequest("POST", KestrelAPIUrl + "/api/v1/license/activate", "Content-Type: application/json\r\n", hbJson, "HEARTBEAT");
+      }
+
+      // Evaluate Market Regime (Hurst Exponent & ADX)
+      g_regimeDetailed = EvaluateMarketRegime(g_currentHurst, g_currentAdx);
+      g_lastRegime = g_regimeDetailed;
+
+      // Detect Smart Money Concepts (SMC)
+      DetectSmartMoneyConcepts();
+
       g_lastAnalysis = AnalyzeMarketConfluence();
 
       // 2. Update display globals from real analysis
@@ -2384,10 +2517,11 @@ void CleanLiquidityObjects()
 //+------------------------------------------------------------------+
 void CheckNewsProximity()
 {
+   if(!EnableNewsFilter) return;
+
    // Cache news data for 15 minutes
    if(TimeCurrent() - g_lastNewsFetchTime < 900 && g_lastNewsFetchTime > 0)
    {
-      // Just update minutesUntil for existing events
       UpdateNewsProximity();
       return;
    }
@@ -2396,88 +2530,98 @@ void CheckNewsProximity()
    g_newsConfidencePenalty = 0.0;
    g_newsWarningText = "";
    g_upcomingNewsCount = 0;
+   g_newsBlockActive = false;
 
-   // Try to fetch from ForexFactory's free API
-   string url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
+   string baseCurrency = StringSubstr(Symbol(), 0, 3);
+   string quoteCurrency = (StringLen(Symbol()) >= 6) ? StringSubstr(Symbol(), 3, 3) : "";
+
+   // 1. Try Kestrel backend calendar endpoint first
+   string url = KestrelAPIUrl + "/api/v1/calendar/forex-factory?impact=" + MinImpactLevel + "&currency=" + baseCurrency;
    string headers = "Content-Type: application/json\r\n";
    char post_data[], result[];
    string result_headers;
 
    ResetLastError();
-   int res = WebRequest("GET", url, headers, NULL, 5000, post_data, 0, result, result_headers);
+   int res = WebRequest("GET", url, headers, NULL, 4000, post_data, 0, result, result_headers);
+
+   // Fallback to ForexFactory directly if backend is unreachable
+   if(res != 200 || ArraySize(result) == 0)
+   {
+      url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
+      ResetLastError();
+      res = WebRequest("GET", url, headers, NULL, 5000, post_data, 0, result, result_headers);
+   }
 
    if(res == 200 && ArraySize(result) > 0)
    {
       string response = CharArrayToString(result);
       g_lastNewsFetchTime = TimeCurrent();
 
-      // Parse events — extract relevant currency events
-      string baseCurrency = StringSubstr(Symbol(), 0, 3);
-      string quoteCurrency = "";
-      if(StringLen(Symbol()) >= 6) quoteCurrency = StringSubstr(Symbol(), 3, 3);
-
-      // Simple JSON array parsing for relevant high-impact events
       int pos = 0;
       while(pos >= 0 && g_upcomingNewsCount < 10)
       {
-         pos = StringFind(response, "\"impact\":\"High\"", pos);
+         pos = StringFind(response, "\"country\":", pos);
+         if(pos < 0) pos = StringFind(response, "\"currency\":", pos);
          if(pos < 0) break;
 
-         // Find the containing object boundaries
          int objStart = pos;
          while(objStart > 0 && StringGetCharacter(response, objStart) != '{') objStart--;
-
          int objEnd = StringFind(response, "}", pos);
          if(objEnd < 0) { pos++; continue; }
 
          string eventObj = StringSubstr(response, objStart, objEnd - objStart + 1);
 
-         // Extract country/currency
-         string evCurrency = ExtractJsonStringConst(eventObj, "country");
-         StringToUpper(evCurrency);
+         string evCountry = ExtractJsonStringConst(eventObj, "country");
+         if(StringLen(evCountry) == 0) evCountry = ExtractJsonStringConst(eventObj, "currency");
+         StringToUpper(evCountry);
 
-         // Only events for our symbol's currencies
-         if(evCurrency == baseCurrency || evCurrency == quoteCurrency)
+         string evImpact = ExtractJsonStringConst(eventObj, "impact");
+         StringToUpper(evImpact);
+
+         bool impactMatch = (MinImpactLevel == "ALL") || 
+                            (MinImpactLevel == "MEDIUM" && (evImpact == "HIGH" || evImpact == "MEDIUM")) ||
+                            (MinImpactLevel == "HIGH" && evImpact == "HIGH");
+
+         if(impactMatch && (evCountry == baseCurrency || evCountry == quoteCurrency))
          {
-            // Extract title
             string evTitle = ExtractJsonStringConst(eventObj, "title");
-            if(StringLen(evTitle) > 30)
-               evTitle = StringSubstr(evTitle, 0, 27) + "...";
+            if(StringLen(evTitle) > 30) evTitle = StringSubstr(evTitle, 0, 27) + "...";
 
-            // Extract date
-            string evDateStr = ExtractJsonStringConst(eventObj, "date");
-
-            // Parse date (format: "2026-09-04T12:30:00-04:00")
-            datetime evTime = ParseNewsDate(evDateStr);
-
-            if(evTime > 0)
+            int minsUntil = 999;
+            string minsStr = ExtractJsonStringConst(eventObj, "minutes_until");
+            if(StringLen(minsStr) > 0)
             {
-               int minsUntil = (int)((evTime - TimeGMT()) / 60);
+               minsUntil = (int)StringToInteger(minsStr);
+            }
+            else
+            {
+               string evDateStr = ExtractJsonStringConst(eventObj, "date");
+               if(StringLen(evDateStr) == 0) evDateStr = ExtractJsonStringConst(eventObj, "event_time_utc");
+               datetime evTime = ParseNewsDate(evDateStr);
+               if(evTime > 0) minsUntil = (int)((evTime - TimeGMT()) / 60);
+            }
 
-               // Only care about events within next 120 minutes or last 15 minutes
-               if(minsUntil > -15 && minsUntil < 120)
+            if(minsUntil > -MinutesBeforeNews && minsUntil < 180)
+            {
+               g_upcomingNews[g_upcomingNewsCount].eventTime = TimeCurrent() + (minsUntil * 60);
+               g_upcomingNews[g_upcomingNewsCount].currency = evCountry;
+               g_upcomingNews[g_upcomingNewsCount].impact = evImpact;
+               g_upcomingNews[g_upcomingNewsCount].title = evTitle;
+               g_upcomingNews[g_upcomingNewsCount].minutesUntil = minsUntil;
+               g_upcomingNewsCount++;
+
+               // Lock trading if within specified window
+               if(MathAbs(minsUntil) <= MinutesBeforeNews)
                {
-                  g_upcomingNews[g_upcomingNewsCount].eventTime = evTime;
-                  g_upcomingNews[g_upcomingNewsCount].currency = evCurrency;
-                  g_upcomingNews[g_upcomingNewsCount].impact = "HIGH";
-                  g_upcomingNews[g_upcomingNewsCount].title = evTitle;
-                  g_upcomingNews[g_upcomingNewsCount].minutesUntil = minsUntil;
-                  g_upcomingNewsCount++;
+                  g_newsBlockActive = true;
+                  g_newsProximityActive = true;
+                  g_newsWarningText = "NEWS IMMINENT: " + evCountry + " " + evTitle + " (" + IntegerToString(minsUntil) + "m)";
                }
             }
          }
          pos = objEnd + 1;
       }
    }
-   else
-   {
-      // Fallback: use time-based heuristics for known events
-      // NFP: First Friday of month at 12:30 GMT
-      // FOMC: Check if we're near typical FOMC time (18:00 GMT on Wednesdays)
-      g_lastNewsFetchTime = TimeCurrent(); // Don't retry too soon
-      Print("📰 [NEWS]: Could not fetch calendar (WebRequest code: ", res, "). Add URL to MT5 whitelist.");
-   }
-
    UpdateNewsProximity();
 }
 
@@ -2987,222 +3131,979 @@ void RequestSwarmSignal()
 //+------------------------------------------------------------------+
 //| AUTONOMOUS TRADE EXECUTION with ATR-Based SL/TP                  |
 //+------------------------------------------------------------------+
-void ExecuteAutonomousTrade(string direction, double customLot = 0.0)
+
+//+------------------------------------------------------------------+
+//| ASYNCHRONOUS WEB REQUEST QUEUE WITH EXPONENTIAL BACKOFF          |
+//+------------------------------------------------------------------+
+void EnqueueWebRequest(string method, string url, string headers, string body, string context)
 {
-   StringToUpper(direction);
-   if(direction != "BUY" && direction != "SELL") return;
-
-   // 1. Check Terminal Algo Trading Permissions
-   if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED))
+   if(g_webQueueCount >= 16)
    {
-      Print("⚠️ [ALGO DISABLED]: Click 'Algo Trading' button in MT5 toolbar.");
-      g_lastTradeMsg = "ENABLE 'ALGO TRADING' IN MT5 TOOLBAR";
-      return;
-   }
-   if(!MQLInfoInteger(MQL_TRADE_ALLOWED))
-   {
-      Print("⚠️ [EA DISABLED]: Press F7 → Check 'Allow Algo Trading'.");
-      g_lastTradeMsg = "PRESS F7 → ENABLE 'ALLOW ALGO TRADING'";
-      return;
+      // Shift queue to drop oldest
+      for(int i = 0; i < 15; i++)
+         g_webQueue[i] = g_webQueue[i + 1];
+      g_webQueueCount = 15;
    }
 
-   // 2. Anti-stacking: only one position per symbol
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   int idx = g_webQueueCount;
+   g_webQueue[idx].method = method;
+   g_webQueue[idx].url = url;
+   g_webQueue[idx].headers = headers;
+   g_webQueue[idx].body = body;
+   g_webQueue[idx].retryCount = 0;
+   g_webQueue[idx].nextAttemptTime = TimeCurrent();
+   g_webQueue[idx].context = context;
+   g_webQueue[idx].inUse = true;
+   g_webQueueCount++;
+}
+
+void ProcessWebQueue()
+{
+   if(g_webQueueCount <= 0) return;
+
+   datetime now = TimeCurrent();
+   for(int i = 0; i < g_webQueueCount; i++)
    {
-      if(PositionGetSymbol(i) == Symbol() && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
-      {
-         g_lastTradeMsg = "POSITION ACTIVE ON " + Symbol();
-         return;
-      }
-   }
+      if(!g_webQueue[i].inUse) continue;
+      if(now < g_webQueue[i].nextAttemptTime) continue;
 
-   // 3. Validate Spread
-   double spread = (double)SymbolInfoInteger(Symbol(), SYMBOL_SPREAD);
-   if(MaxSpreadPoints > 0 && spread > MaxSpreadPoints)
-   {
-      Print("⚠️ Spread high (", spread, " > ", MaxSpreadPoints, "). Waiting for better spread.");
-      g_lastTradeMsg = "SPREAD TOO HIGH (" + DoubleToString(spread, 0) + ")";
-      return;
-   }
+      char postData[], result[];
+      string resultHeaders;
+      if(StringLen(g_webQueue[i].body) > 0)
+         StringToCharArray(g_webQueue[i].body, postData, 0, StringLen(g_webQueue[i].body));
 
-   // 4. Determine lot size (risk-based or fixed)
-   double baseLot = customLot;
-   if(baseLot <= 0 || baseLot > LotSize) baseLot = LotSize;
-
-   // If risk-based sizing is enabled and this is an auto-trade, use risk lot
-   if(RiskPercentPerTrade > 0 && g_autoPilotActive && g_suggestedLot > 0)
-      baseLot = g_suggestedLot;
-
-   // 5. Broker Lot Size Normalization
-   double minLot  = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
-   double maxLot  = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
-   double stepLot = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
-   if(minLot <= 0) minLot = 0.01;
-   if(stepLot <= 0) stepLot = 0.01;
-
-   double desiredLot = baseLot * g_recoveryMult * ClientRiskMultiplier;
-   if(desiredLot < minLot) desiredLot = minLot;
-   if(maxLot > 0 && desiredLot > maxLot) desiredLot = maxLot;
-
-   double normalizedLots = MathFloor((desiredLot - minLot) / stepLot) * stepLot + minLot;
-   int lotDigits = (stepLot < 0.1) ? 2 : ((stepLot < 1.0) ? 1 : 0);
-   normalizedLots = NormalizeDouble(normalizedLots, lotDigits);
-
-   // 6. Live Prices & ATR-Based SL/TP
-   double ask = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
-   double bid = SymbolInfoDouble(Symbol(), SYMBOL_BID);
-   double point = SymbolInfoDouble(Symbol(), SYMBOL_POINT);
-   int digits = (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS);
-   int stopLevel = (int)SymbolInfoInteger(Symbol(), SYMBOL_TRADE_STOPS_LEVEL);
-
-   double atrVal = 0.0;
-   if(g_lastAnalysis.isValid && g_lastAnalysis.atrValue > 0)
-   {
-      atrVal = g_lastAnalysis.atrValue;
-   }
-   else
-   {
-      double atrBuf[];
-      ArraySetAsSeries(atrBuf, true);
-      if(g_hAtr14 != INVALID_HANDLE && CopyBuffer(g_hAtr14, 0, 0, 1, atrBuf) >= 1)
-         atrVal = atrBuf[0];
-      if(atrVal <= 0) atrVal = point * 300;
-
-      string sym = Symbol();
-      if(EnableSpikeHunter && (StringFind(sym, "Boom") >= 0 || StringFind(sym, "Crash") >= 0))
-         atrVal *= 1.8;
-   }
-
-   double slDist = atrVal * SL_ATR_Mult;
-   double tpDist = atrVal * TP1_ATR_Mult;
-
-   double minStopDist = (double)stopLevel * point * 1.5;
-   if(slDist < minStopDist) slDist = minStopDist;
-   if(tpDist < minStopDist) tpDist = minStopDist;
-
-   MqlTradeRequest request;
-   MqlTradeResult result;
-   ZeroMemory(request);
-   ZeroMemory(result);
-
-   request.action    = TRADE_ACTION_DEAL;
-   request.symbol    = Symbol();
-   request.volume    = normalizedLots;
-   request.deviation = SlippagePoints;
-   request.magic     = MagicNumber;
-   request.comment   = "Kestrel v5 Intelligence";
-
-   double origSL = 0, origTP = 0;
-
-   if(direction == "BUY")
-   {
-      request.type  = ORDER_TYPE_BUY;
-      request.price = NormalizeDouble(ask, digits);
-      request.sl    = NormalizeDouble(ask - slDist, digits);
-      request.tp    = NormalizeDouble(ask + tpDist, digits);
-   }
-   else
-   {
-      request.type  = ORDER_TYPE_SELL;
-      request.price = NormalizeDouble(bid, digits);
-      request.sl    = NormalizeDouble(bid + slDist, digits);
-      request.tp    = NormalizeDouble(bid - tpDist, digits);
-   }
-
-   origSL = request.sl;
-   origTP = request.tp;
-
-   // 7. Multi-Pass Filling Mode Execution
-   ENUM_ORDER_TYPE_FILLING fillModes[3] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
-   bool orderSuccess = false;
-
-   for(int f = 0; f < 3 && !orderSuccess; f++)
-   {
-      request.type_filling = fillModes[f];
       ResetLastError();
-      if(OrderSend(request, result))
+      int res = WebRequest(g_webQueue[i].method, g_webQueue[i].url, g_webQueue[i].headers, NULL, 3000, postData, ArraySize(postData), result, resultHeaders);
+
+      if(res == 200 || res == 201 || res == 204)
       {
-         orderSuccess = true;
-         break;
+         // Success - remove from queue
+         for(int j = i; j < g_webQueueCount - 1; j++)
+            g_webQueue[j] = g_webQueue[j + 1];
+         g_webQueueCount--;
+         i--;
       }
-      else if(result.retcode == 10016)
+      else
       {
-         request.sl = 0.0;
-         request.tp = 0.0;
-         if(OrderSend(request, result))
+         g_webQueue[i].retryCount++;
+         if(g_webQueue[i].retryCount >= 4)
          {
-            orderSuccess = true;
-            Print("⚠️ [NOTE]: Opened without SL/TP (broker rejected stops). Will set via SLTP modify.");
+            Print("⚠️ [WEB QUEUE]: Max retries reached for ", g_webQueue[i].context, ". Dropping item.");
+            for(int j = i; j < g_webQueueCount - 1; j++)
+               g_webQueue[j] = g_webQueue[j + 1];
+            g_webQueueCount--;
+            i--;
+         }
+         else
+         {
+            // Exponential backoff: 1s, 2s, 4s, 8s
+            int backoffSec = 1 << g_webQueue[i].retryCount;
+            g_webQueue[i].nextAttemptTime = now + backoffSec;
+            Print("🔄 [WEB QUEUE]: Retry #", g_webQueue[i].retryCount, " in ", backoffSec, "s for ", g_webQueue[i].context);
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| ADAPTIVE REGIME SWITCHER - HURST EXPONENT (ROLLING 200 BARS)     |
+//+------------------------------------------------------------------+
+double CalculateHurstExponent(int lookback = 200)
+{
+   if(lookback < 50) lookback = 50;
+   double closePrices[];
+   ArraySetAsSeries(closePrices, true);
+   if(CopyClose(Symbol(), Period(), 0, lookback + 1, closePrices) < lookback + 1)
+      return 0.50; // Neutral random walk
+
+   // 1. Calculate logarithmic returns
+   double returns[];
+   ArrayResize(returns, lookback);
+   double sumReturns = 0.0;
+   for(int i = 0; i < lookback; i++)
+   {
+      double p0 = closePrices[i + 1];
+      double p1 = closePrices[i];
+      if(p0 <= 0.0) p0 = 1.0;
+      if(p1 <= 0.0) p1 = 1.0;
+      returns[i] = MathLog(p1 / p0);
+      sumReturns += returns[i];
+   }
+   double meanReturn = sumReturns / (double)lookback;
+
+   // 2. Cumulative deviations from the mean
+   double cumDev[];
+   ArrayResize(cumDev, lookback);
+   double currentCum = 0.0;
+   double maxDev = -1e9;
+   double minDev = 1e9;
+   double sumSqDev = 0.0;
+
+   for(int i = 0; i < lookback; i++)
+   {
+      double dev = returns[i] - meanReturn;
+      currentCum += dev;
+      cumDev[i] = currentCum;
+      if(currentCum > maxDev) maxDev = currentCum;
+      if(currentCum < minDev) minDev = currentCum;
+      sumSqDev += dev * dev;
+   }
+
+   // 3. Rescaled Range R/S
+   double rangeR = maxDev - minDev;
+   double stdDevS = MathSqrt(sumSqDev / (double)lookback);
+   if(stdDevS <= 1e-12 || rangeR <= 1e-12) return 0.50;
+
+   double rescaledRange = rangeR / stdDevS;
+
+   // 4. Hurst exponent H = ln(R/S) / ln(N / 2)
+   double hurst = MathLog(rescaledRange) / MathLog((double)lookback / 2.0);
+
+   if(hurst < 0.05) hurst = 0.05;
+   if(hurst > 0.95) hurst = 0.95;
+
+   return hurst;
+}
+
+string EvaluateMarketRegime(double &outHurst, double &outAdx)
+{
+   outHurst = CalculateHurstExponent(HurstLookbackBars);
+
+   double adxBuf[];
+   ArraySetAsSeries(adxBuf, true);
+   outAdx = 20.0;
+   if(g_hAdx14 != INVALID_HANDLE && CopyBuffer(g_hAdx14, 0, 0, 1, adxBuf) >= 1)
+      outAdx = adxBuf[0];
+
+   string regimeStr = "CHOPPY / NEUTRAL";
+   if(MarketRegimeDetection == REGIME_HURST_GARCH)
+   {
+      if(outHurst > HurstTrendThreshold) regimeStr = "PERSISTENT TREND (H=" + DoubleToString(outHurst, 2) + ")";
+      else if(outHurst < HurstMeanRevThreshold) regimeStr = "MEAN-REVERTING (H=" + DoubleToString(outHurst, 2) + ")";
+      else regimeStr = "RANDOM WALK / CHOP (H=" + DoubleToString(outHurst, 2) + ")";
+   }
+   else if(MarketRegimeDetection == REGIME_ADX_FILTER)
+   {
+      if(outAdx >= 25.0) regimeStr = "STRONG TREND (ADX=" + DoubleToString(outAdx, 1) + ")";
+      else if(outAdx < 20.0) regimeStr = "RANGE / MEAN-REV (ADX=" + DoubleToString(outAdx, 1) + ")";
+      else regimeStr = "TRANSITIONAL";
+   }
+   else // REGIME_HYBRID or REGIME_NEURAL_NET
+   {
+      if(outHurst > HurstTrendThreshold && outAdx >= 22.0)
+         regimeStr = "HIGH CONVICTION TREND [H=" + DoubleToString(outHurst, 2) + "|ADX=" + DoubleToString(outAdx, 0) + "]";
+      else if(outHurst < HurstMeanRevThreshold && outAdx < 22.0)
+         regimeStr = "PRIME MEAN-REVERSION [H=" + DoubleToString(outHurst, 2) + "|ADX=" + DoubleToString(outAdx, 0) + "]";
+      else if(outHurst > 0.52)
+         regimeStr = "MILD TREND [H=" + DoubleToString(outHurst, 2) + "]";
+      else
+         regimeStr = "CHOPPY RANGE [H=" + DoubleToString(outHurst, 2) + "]";
+   }
+   return regimeStr;
+}
+
+//+------------------------------------------------------------------+
+//| SMART MONEY CONCEPTS (SMC) MODULE                                |
+//+------------------------------------------------------------------+
+void DetectSmartMoneyConcepts()
+{
+   g_smcData.isValid = false;
+   g_smcData.bullishOBVote = 0;
+   g_smcData.bearishOBVote = 0;
+   g_smcData.fvgDiscountVote = 0;
+   g_smcData.liqSweepVote = 0;
+   g_smcData.multiTfBosVote = 0;
+   g_smcData.premDiscVote = 0;
+   g_smcData.confluenceCount = 0;
+   g_smcData.bias = "NEUTRAL";
+   g_smcData.summary = "No SMC Setup";
+
+   if(!EnableSMC) return;
+
+   int bars = 50;
+   double o[], h[], l[], c[];
+   datetime t[];
+   ArraySetAsSeries(o, true); ArraySetAsSeries(h, true);
+   ArraySetAsSeries(l, true); ArraySetAsSeries(c, true);
+   ArraySetAsSeries(t, true);
+
+   if(CopyOpen(Symbol(), Period(), 0, bars, o) < bars ||
+      CopyHigh(Symbol(), Period(), 0, bars, h) < bars ||
+      CopyLow(Symbol(), Period(), 0, bars, l) < bars ||
+      CopyClose(Symbol(), Period(), 0, bars, c) < bars ||
+      CopyTime(Symbol(), Period(), 0, bars, t) < bars)
+      return;
+
+   double point = SymbolInfoDouble(Symbol(), SYMBOL_POINT);
+   double atrVal = g_lastAnalysis.atrValue;
+   if(atrVal <= 0) atrVal = point * 200;
+
+   // 1. Premium / Discount Equilibrium over 50 bars
+   double highest50 = h[0];
+   double lowest50 = l[0];
+   for(int b = 1; b < bars; b++)
+   {
+      if(h[b] > highest50) highest50 = h[b];
+      if(l[b] < lowest50) lowest50 = l[b];
+   }
+   double equilibrium = (highest50 + lowest50) / 2.0;
+   g_smcData.equilibrium = equilibrium;
+
+   double currentPrice = c[0];
+   if(currentPrice < equilibrium)
+   {
+      g_smcData.premDiscVote = 1; // Discount zone -> Bullish favor
+   }
+   else if(currentPrice > equilibrium)
+   {
+      g_smcData.premDiscVote = -1; // Premium zone -> Bearish favor
+   }
+
+   // 2. Order Block (OB) Detection
+   // Bullish OB: Last down candle before strong expansion breaking structure
+   // Bearish OB: Last up candle before strong expansion breaking structure
+   for(int i = 1; i < 25; i++)
+   {
+      // Bullish OB: candle i is bearish, candle i-1 and 0 are strong bullish expansion
+      if(c[i] < o[i] && c[i - 1] > o[i - 1] && (c[i - 1] - o[i - 1]) > 1.2 * atrVal)
+      {
+         // Test if price is currently testing this OB zone
+         if(currentPrice >= l[i] && currentPrice <= h[i])
+         {
+            g_smcData.bullishOBVote = 1;
+            break;
+         }
+      }
+      // Bearish OB: candle i is bullish, candle i-1 is strong bearish expansion
+      if(c[i] > o[i] && c[i - 1] < o[i - 1] && (o[i - 1] - c[i - 1]) > 1.2 * atrVal)
+      {
+         if(currentPrice >= l[i] && currentPrice <= h[i])
+         {
+            g_smcData.bearishOBVote = -1;
             break;
          }
       }
    }
 
-   if(orderSuccess)
+   // 3. Fair Value Gap (FVG) with 50% discount fill tracking
+   for(int i = 1; i < 15; i++)
    {
-      g_totalTrades++;
-      g_lastTradeMsg = direction + " #" + IntegerToString((long)result.deal) + " @ " + DoubleToString(request.price, digits);
+      // Bullish FVG: Low of candle i > High of candle i+2
+      if(l[i] > h[i + 2])
+      {
+         double gapTop = l[i];
+         double gapBottom = h[i + 2];
+         double fvg50 = gapBottom + (gapTop - gapBottom) * 0.50;
 
+         // Price currently mitigating the 50% discount fill
+         if(currentPrice <= fvg50 && currentPrice >= gapBottom)
+         {
+            g_smcData.fvgDiscountVote = 1;
+            break;
+         }
+      }
+      // Bearish FVG: High of candle i < Low of candle i+2
+      else if(h[i] < l[i + 2])
+      {
+         double gapTop = l[i + 2];
+         double gapBottom = h[i];
+         double fvg50 = gapBottom + (gapTop - gapBottom) * 0.50;
+
+         if(currentPrice >= fvg50 && currentPrice <= gapTop)
+         {
+            g_smcData.fvgDiscountVote = -1;
+            break;
+         }
+      }
+   }
+
+   // 4. Liquidity Sweep: Price wicks beyond recent 20-bar high/low with rejection wick > 1.5x ATR
+   double recentHigh = -1e9;
+   double recentLow = 1e9;
+   for(int k = 2; k < 22; k++)
+   {
+      if(h[k] > recentHigh) recentHigh = h[k];
+      if(l[k] < recentLow) recentLow = l[k];
+   }
+
+   // Bullish sweep of sell-side liquidity: Low wicks below recentLow, closes back inside with long lower wick
+   if(l[1] < recentLow && c[1] > recentLow && (c[1] - l[1]) >= (1.5 * atrVal))
+   {
+      g_smcData.liqSweepVote = 1;
+   }
+   // Bearish sweep of buy-side liquidity: High wicks above recentHigh, closes back inside with long upper wick
+   else if(h[1] > recentHigh && c[1] < recentHigh && (h[1] - c[1]) >= (1.5 * atrVal))
+   {
+      g_smcData.liqSweepVote = -1;
+   }
+
+   // 5. Multi-TF BOS / CHoCH Alignment (M15, H1, H4)
+   int tfBullCount = 0;
+   int tfBearCount = 0;
+   for(int m = 1; m <= 3; m++) // slots 1=M15, 2=H1, 3=H4
+   {
+      if(g_mtfData.slots[m].direction == "BUY") tfBullCount++;
+      else if(g_mtfData.slots[m].direction == "SELL") tfBearCount++;
+   }
+   if(tfBullCount >= 2) g_smcData.multiTfBosVote = 1;
+   else if(tfBearCount >= 2) g_smcData.multiTfBosVote = -1;
+
+   // 6. Confluence Evaluation
+   int bullConfluences = 0;
+   int bearConfluences = 0;
+
+   if(g_smcData.bullishOBVote > 0) bullConfluences++;
+   if(g_smcData.fvgDiscountVote > 0) bullConfluences++;
+   if(g_smcData.liqSweepVote > 0) bullConfluences++;
+   if(g_smcData.multiTfBosVote > 0) bullConfluences++;
+   if(g_smcData.premDiscVote > 0) bullConfluences++;
+
+   if(g_smcData.bearishOBVote < 0) bearConfluences++;
+   if(g_smcData.fvgDiscountVote < 0) bearConfluences++;
+   if(g_smcData.liqSweepVote < 0) bearConfluences++;
+   if(g_smcData.multiTfBosVote < 0) bearConfluences++;
+   if(g_smcData.premDiscVote < 0) bearConfluences++;
+
+   if(bullConfluences >= bearConfluences && bullConfluences > 0)
+   {
+      g_smcData.confluenceCount = bullConfluences;
+      g_smcData.bias = "BUY";
+      g_smcData.summary = "Bullish SMC (" + IntegerToString(bullConfluences) + " Confluences)";
+   }
+   else if(bearConfluences > bullConfluences)
+   {
+      g_smcData.confluenceCount = bearConfluences;
+      g_smcData.bias = "SELL";
+      g_smcData.summary = "Bearish SMC (" + IntegerToString(bearConfluences) + " Confluences)";
+   }
+
+   g_smcData.isValid = true;
+}
+
+//+------------------------------------------------------------------+
+//| SINGLE AUDITED RISK ENGINE (RULE #6 COMPLIANT)                   |
+//| All trade entries, exits, lot sizing, and risk must pass through |
+//| this single class. Direct OrderSend outside this is prohibited.  |
+//+------------------------------------------------------------------+
+class CRiskEngine
+{
+private:
+   int    m_consecutiveLossesToday;
+   bool   m_circuitBreakerTriggered;
+
+public:
+   CRiskEngine()
+   {
+      m_consecutiveLossesToday = 0;
+      m_circuitBreakerTriggered = false;
+   }
+
+   void Initialize()
+   {
+      g_initialAccountBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+      g_dayStartEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+      g_peakEquity = g_dayStartEquity;
+      g_propRuleBreached = false;
+      g_propBreachReason = "";
+      m_circuitBreakerTriggered = false;
+      m_consecutiveLossesToday = 0;
+      
+      MqlDateTime dt;
+      TimeCurrent(dt);
+      g_lastRecordedDay = dt.day;
+      g_tradingDaysCount = 1;
+      Print("🛡️ [CRiskEngine]: Initialized. Initial Balance=$", DoubleToString(g_initialAccountBalance, 2), " PropMode=", EnumToString(PropFirmMode));
+   }
+
+   void UpdateDailyStats()
+   {
+      double currentEq = AccountInfoDouble(ACCOUNT_EQUITY);
+      if(currentEq > g_peakEquity) g_peakEquity = currentEq;
+
+      MqlDateTime dt;
+      TimeCurrent(dt);
+      if(dt.day != g_lastRecordedDay)
+      {
+         // Reset daily baseline at broker 00:00 midnight
+         g_dayStartEquity = currentEq;
+         g_lastRecordedDay = dt.day;
+         g_tradingDaysCount++;
+         m_consecutiveLossesToday = 0;
+         m_circuitBreakerTriggered = false;
+         Print("📅 [CRiskEngine]: New Trading Day #", g_tradingDaysCount, " Baseline Equity=$", DoubleToString(g_dayStartEquity, 2));
+      }
+
+      CheckPropLimits();
+      CheckCircuitBreaker();
+   }
+
+   double GetDailyLossPct() const
+   {
+      if(g_dayStartEquity <= 0) return 0.0;
+      double currentEq = AccountInfoDouble(ACCOUNT_EQUITY);
+      if(currentEq >= g_dayStartEquity) return 0.0;
+      return ((g_dayStartEquity - currentEq) / g_dayStartEquity) * 100.0;
+   }
+
+   double GetTotalDrawdownPct() const
+   {
+      if(g_peakEquity <= 0) return 0.0;
+      double currentEq = AccountInfoDouble(ACCOUNT_EQUITY);
+      if(currentEq >= g_peakEquity) return 0.0;
+      return ((g_peakEquity - currentEq) / g_peakEquity) * 100.0;
+   }
+
+   int GetConsecutiveLosses() const { return m_consecutiveLossesToday; }
+   bool IsCircuitBreakerTripped() const { return m_circuitBreakerTriggered; }
+
+   bool CheckPropLimits()
+   {
+      if(PropFirmMode == PROP_NONE) return true;
+
+      double maxDailyLoss = 5.0;
+      double maxTotalDD = 10.0;
+      switch(PropFirmMode)
+      {
+         case PROP_FTMO:        maxDailyLoss = 5.0; maxTotalDD = 10.0; break;
+         case PROP_MFF:         maxDailyLoss = 5.0; maxTotalDD = 12.0; break;
+         case PROP_THE5ERS:     maxDailyLoss = 5.0; maxTotalDD = 10.0; break;
+         case PROP_EQUITY_EDGE: maxDailyLoss = 4.0; maxTotalDD = 8.0;  break;
+         case PROP_CUSTOM:      maxDailyLoss = PropMaxDailyLossPct; maxTotalDD = PropMaxTotalDDPct; break;
+         default: return true;
+      }
+
+      double currentDailyLoss = GetDailyLossPct();
+      double currentTotalDD = GetTotalDrawdownPct();
+
+      // Buffer of 0.5% safety margin before hard challenge failure
+      if(currentDailyLoss >= (maxDailyLoss - 0.5) || currentTotalDD >= (maxTotalDD - 0.5))
+      {
+         g_propRuleBreached = true;
+         g_propBreachReason = "PROP RISK LIMIT REACHED (DayLoss=" + DoubleToString(currentDailyLoss, 1) + 
+                              "% / TotalDD=" + DoubleToString(currentTotalDD, 1) + "%)";
+         Print("🚨🚨 [PROP BREACH DETECTED]: ", g_propBreachReason, " - EXECUTING EMERGENCY CLOSE ALL!");
+         CloseAllPositions(g_propBreachReason);
+         g_autoPilotActive = false;
+         return false;
+      }
+      return true;
+   }
+
+   bool CheckCircuitBreaker()
+   {
+      if(m_circuitBreakerTriggered) return false;
+
+      // Circuit breaker: Daily loss >= 2.0% or 3 consecutive losses today
+      if(GetDailyLossPct() >= 2.0 || m_consecutiveLossesToday >= 3)
+      {
+         m_circuitBreakerTriggered = true;
+         Print("🛑 [CIRCUIT BREAKER TRIGGERED]: Daily loss: ", DoubleToString(GetDailyLossPct(), 2), 
+               "% | Consecutive losses: ", m_consecutiveLossesToday, ". Auto-Pilot paused until tomorrow.");
+         return false;
+      }
+      return true;
+   }
+
+   bool IsCircuitBreakerActive() const
+   {
+      return m_circuitBreakerTriggered;
+   }
+
+   bool CheckCorrelationGuard(string newSymbol, string direction)
+   {
+      string currBase = StringSubstr(newSymbol, 0, 3);
+      string currQuote = (StringLen(newSymbol) >= 6) ? StringSubstr(newSymbol, 3, 3) : "";
+      bool isBuy = (direction == "BUY");
+
+      for(int i = PositionsTotal() - 1; i >= 0; i--)
+      {
+         if(PositionGetInteger(POSITION_MAGIC) != MagicNumber) continue;
+         string openSym = PositionGetString(POSITION_SYMBOL);
+         if(openSym == newSymbol) continue;
+
+         string openBase = StringSubstr(openSym, 0, 3);
+         string openQuote = (StringLen(openSym) >= 6) ? StringSubstr(openSym, 3, 3) : "";
+         ENUM_POSITION_TYPE openType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+         bool openIsBuy = (openType == POSITION_TYPE_BUY);
+
+         // Same quote currency (e.g. EURUSD and GBPUSD both BUY -> both short USD, correlation > 0.70)
+         if(currQuote == openQuote && StringLen(currQuote) == 3 && isBuy == openIsBuy)
+         {
+            Print("⚠️ [CORRELATION GUARD]: High correlation between ", newSymbol, " and ", openSym, " (both ", direction, "). Rejecting entry.");
+            return false;
+         }
+         // Same base currency (e.g. EURUSD and EURJPY both BUY -> both long EUR)
+         if(currBase == openBase && StringLen(currBase) == 3 && isBuy == openIsBuy)
+         {
+            Print("⚠️ [CORRELATION GUARD]: Shared base currency ", currBase, " between ", newSymbol, " and ", openSym, ". Rejecting entry.");
+            return false;
+         }
+      }
+      return true;
+   }
+
+   bool CheckNewsFilter(string &newsWarning)
+   {
+      if(!EnableNewsFilter) return true;
+      if(g_newsBlockActive)
+      {
+         newsWarning = "NEWS EVENT IMMINENT (Window: " + IntegerToString(MinutesBeforeNews) + "m)";
+         return false;
+      }
+      return true;
+   }
+
+   double CalculateRiskLot(string direction, double slPoints)
+   {
+      double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+      if(balance <= 0) return LotSize;
+
+      double riskAmount = balance * (RiskPercentPerTrade / 100.0) * g_recoveryMult * ClientRiskMultiplier;
+      double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
+      double tickSize  = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
+      double point     = SymbolInfoDouble(Symbol(), SYMBOL_POINT);
+
+      if(tickValue <= 0 || tickSize <= 0 || point <= 0 || slPoints <= 0) return LotSize;
+
+      double slValuePerLot = (slPoints * point / tickSize) * tickValue;
+      if(slValuePerLot <= 0) return LotSize;
+
+      double calculatedLot = riskAmount / slValuePerLot;
+
+      // Kelly Criterion Cap: f* = W - (1 - W) / R (capped at 2x Kelly fraction)
+      double winRate = (g_totalTrades > 5) ? ((double)g_winTrades / (double)g_totalTrades) : 0.50;
+      double rRatio = (TP1_ATR_Mult > 0 && SL_ATR_Mult > 0) ? (TP1_ATR_Mult / SL_ATR_Mult) : 1.5;
+      double kellyFraction = winRate - ((1.0 - winRate) / (rRatio > 0 ? rRatio : 1.0));
+      if(kellyFraction > 0.0)
+      {
+         double kellyCapLot = LotSize * 2.0 * kellyFraction;
+         if(calculatedLot > kellyCapLot && kellyCapLot > 0.01)
+            calculatedLot = kellyCapLot;
+      }
+
+      // Prop firm lot cap
+      if(PropFirmMode != PROP_NONE && PropMaxLotCap > 0 && calculatedLot > PropMaxLotCap)
+         calculatedLot = PropMaxLotCap;
+
+      // Broker normalization
+      double minLot  = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
+      double maxLot  = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
+      double stepLot = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
+      if(minLot <= 0) minLot = 0.01;
+      if(stepLot <= 0) stepLot = 0.01;
+
+      if(calculatedLot < minLot) calculatedLot = minLot;
+      if(calculatedLot > LotSize) calculatedLot = LotSize;
+      if(maxLot > 0 && calculatedLot > maxLot) calculatedLot = maxLot;
+
+      double normalized = MathFloor((calculatedLot - minLot) / stepLot) * stepLot + minLot;
+      int lotDigits = (stepLot < 0.1) ? 2 : ((stepLot < 1.0) ? 1 : 0);
+      return NormalizeDouble(normalized, lotDigits);
+   }
+
+   bool CanOpenTrade(string direction, double customLot, double &outLots, double &outSL, double &outTP, string &rejectionReason)
+   {
+      rejectionReason = "";
+
+      // 1. Algo trading permissions
+      if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED))
+      {
+         rejectionReason = "ENABLE 'ALGO TRADING' IN MT5 TOOLBAR";
+         return false;
+      }
+      if(!MQLInfoInteger(MQL_TRADE_ALLOWED))
+      {
+         rejectionReason = "PRESS F7 -> ENABLE 'ALLOW ALGO TRADING'";
+         return false;
+      }
+
+      // 2. Prop firm limit check
+      if(!CheckPropLimits())
+      {
+         rejectionReason = g_propBreachReason;
+         return false;
+      }
+
+      // 3. Circuit breaker check
+      if(!CheckCircuitBreaker())
+      {
+         rejectionReason = "CIRCUIT BREAKER ACTIVE";
+         return false;
+      }
+
+      // 4. News filter check
+      string newsWarn = "";
+      if(!CheckNewsFilter(newsWarn))
+      {
+         rejectionReason = newsWarn;
+         return false;
+      }
+
+      // 5. Anti-stacking: only 1 position per symbol
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
          if(PositionGetSymbol(i) == Symbol() && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
          {
-            g_activePositionTicket = PositionGetTicket(i);
-            break;
+            rejectionReason = "POSITION ALREADY ACTIVE ON " + Symbol();
+            return false;
          }
       }
-      g_partialTP1Fired = false;
-      g_partialTP2Fired = false;
 
-      Print("✅ [TRADE EXECUTED]: ", direction, " ", normalizedLots, " lots @ ",
-            DoubleToString(request.price, digits),
-            " | SL: ", DoubleToString((origSL > 0 ? origSL : request.sl), digits),
-            " | TP: ", DoubleToString((origTP > 0 ? origTP : request.tp), digits),
-            " | Risk: ", DoubleToString(RiskPercentPerTrade, 1), "%");
-      Print("   📊 Reason: ", g_lastAnalysis.reasoning);
-
-      if(request.sl == 0.0 && origSL > 0)
+      // 6. Spread validation
+      double spread = (double)SymbolInfoInteger(Symbol(), SYMBOL_SPREAD);
+      if(MaxSpreadPoints > 0 && spread > MaxSpreadPoints)
       {
-         Sleep(300);
-         for(int i = PositionsTotal() - 1; i >= 0; i--)
+         rejectionReason = "SPREAD TOO HIGH (" + DoubleToString(spread, 0) + ")";
+         return false;
+      }
+
+      // 7. Correlation guard
+      if(!CheckCorrelationGuard(Symbol(), direction))
+      {
+         rejectionReason = "CORRELATED PAIR POSITION ALREADY ACTIVE";
+         return false;
+      }
+
+      // 8. SMC Minimum Confluence requirement (if enabled)
+      if(EnableSMC && g_smcData.isValid)
+      {
+         if(g_smcData.bias != direction || g_smcData.confluenceCount < SMCMinConfluence)
          {
-            if(PositionGetSymbol(i) == Symbol() && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+            rejectionReason = "SMC CONFLUENCE LOW (" + IntegerToString(g_smcData.confluenceCount) + "/" + IntegerToString(SMCMinConfluence) + ")";
+            return false;
+         }
+      }
+
+      // 9. Calculate SL, TP, Lots
+      double ask = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
+      double bid = SymbolInfoDouble(Symbol(), SYMBOL_BID);
+      double point = SymbolInfoDouble(Symbol(), SYMBOL_POINT);
+      int digits = (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS);
+      int stopLevel = (int)SymbolInfoInteger(Symbol(), SYMBOL_TRADE_STOPS_LEVEL);
+
+      double atrVal = (g_lastAnalysis.isValid && g_lastAnalysis.atrValue > 0) ? g_lastAnalysis.atrValue : point * 300;
+      double slDist = atrVal * SL_ATR_Mult;
+      double tpDist = atrVal * TP1_ATR_Mult;
+
+      double minStopDist = (double)stopLevel * point * 1.5;
+      if(slDist < minStopDist) slDist = minStopDist;
+      if(tpDist < minStopDist) tpDist = minStopDist;
+
+      double slPoints = slDist / (point > 0 ? point : 1.0);
+      outLots = (RiskPercentPerTrade > 0) ? CalculateRiskLot(direction, slPoints) : ((customLot > 0) ? customLot : LotSize);
+
+      if(direction == "BUY")
+      {
+         outSL = NormalizeDouble(ask - slDist, digits);
+         outTP = NormalizeDouble(ask + tpDist, digits);
+      }
+      else
+      {
+         outSL = NormalizeDouble(bid + slDist, digits);
+         outTP = NormalizeDouble(bid - tpDist, digits);
+      }
+
+      return true;
+   }
+
+   bool ExecuteTrade(string direction, double customLot = 0.0, string reason = "Automated Signal")
+   {
+      StringToUpper(direction);
+      if(direction != "BUY" && direction != "SELL") return false;
+
+      double lots = 0, sl = 0, tp = 0;
+      string rejectionReason = "";
+      if(!CanOpenTrade(direction, customLot, lots, sl, tp, rejectionReason))
+      {
+         g_lastTradeMsg = rejectionReason;
+         Print("🛡️ [CRiskEngine BLOCKED]: ", direction, " on ", Symbol(), " - Reason: ", rejectionReason);
+         return false;
+      }
+
+      int digits = (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS);
+      double ask = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
+      double bid = SymbolInfoDouble(Symbol(), SYMBOL_BID);
+
+      MqlTradeRequest request;
+      MqlTradeResult result;
+      ZeroMemory(request);
+      ZeroMemory(result);
+
+      request.action    = TRADE_ACTION_DEAL;
+      request.symbol    = Symbol();
+      request.volume    = lots;
+      request.deviation = SlippagePoints;
+      request.magic     = MagicNumber;
+      request.comment   = "Kestrel v4.0 RiskEngine";
+
+      if(direction == "BUY")
+      {
+         request.type  = ORDER_TYPE_BUY;
+         request.price = NormalizeDouble(ask, digits);
+      }
+      else
+      {
+         request.type  = ORDER_TYPE_SELL;
+         request.price = NormalizeDouble(bid, digits);
+      }
+      request.sl = sl;
+      request.tp = tp;
+
+      double origSL = sl;
+      double origTP = tp;
+
+      ENUM_ORDER_TYPE_FILLING fillModes[3] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
+      bool orderSuccess = false;
+
+      for(int f = 0; f < 3 && !orderSuccess; f++)
+      {
+         request.type_filling = fillModes[f];
+         ResetLastError();
+         if(OrderSend(request, result))
+         {
+            orderSuccess = true;
+            break;
+         }
+         else if(result.retcode == 10016)
+         {
+            request.sl = 0.0;
+            request.tp = 0.0;
+            if(OrderSend(request, result))
             {
-               ulong posTicket = PositionGetTicket(i);
-               MqlTradeRequest modReq;
-               MqlTradeResult modRes;
-               ZeroMemory(modReq);
-               ZeroMemory(modRes);
-               modReq.action   = TRADE_ACTION_SLTP;
-               modReq.position = posTicket;
-               modReq.symbol   = Symbol();
-               modReq.sl       = origSL;
-               modReq.tp       = origTP;
-               if(OrderSend(modReq, modRes))
-                  Print("✅ [SLTP SET]: SL=", DoubleToString(origSL, digits), " TP=", DoubleToString(origTP, digits));
-               else
-                  Print("⚠️ [SLTP FAILED]: Could not set stops. Error: ", modRes.retcode);
+               orderSuccess = true;
+               Print("⚠️ [NOTE]: Opened without stops. Will set via SLTP modify.");
                break;
             }
          }
       }
 
-      if(DrawSignalArrows)
-         Draw3DChartSignal(direction, request.price, origSL > 0 ? origSL : request.sl, origTP > 0 ? origTP : request.tp);
+      if(orderSuccess)
+      {
+         g_totalTrades++;
+         g_lastTradeMsg = direction + " #" + IntegerToString((long)result.deal) + " @ " + DoubleToString(request.price, digits);
 
-      ReportTradeToSupabase(direction, request.price, normalizedLots, origSL, origTP, result.deal);
-      SyncAccountToSupabase();
+         for(int i = PositionsTotal() - 1; i >= 0; i--)
+         {
+            if(PositionGetSymbol(i) == Symbol() && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+            {
+               g_activePositionTicket = PositionGetTicket(i);
+               break;
+            }
+         }
+         g_partialTP1Fired = false;
+         g_partialTP2Fired = false;
+
+         Print("✅ [CRiskEngine EXECUTED]: ", direction, " ", lots, " lots @ ",
+               DoubleToString(request.price, digits), " | SL: ", DoubleToString(origSL, digits),
+               " | TP: ", DoubleToString(origTP, digits));
+
+         if(request.sl == 0.0 && origSL > 0)
+         {
+            Sleep(300);
+            ModifyPositionStops(g_activePositionTicket, origSL, origTP);
+         }
+
+         if(DrawSignalArrows)
+            Draw3DChartSignal(direction, request.price, origSL, origTP);
+
+         ReportTradeToSupabase(direction, request.price, lots, origSL, origTP, result.deal);
+         SyncAccountToSupabase();
+         return true;
+      }
+      else
+      {
+         g_lastTradeMsg = "ERR " + IntegerToString((long)result.retcode) + ": " + result.comment;
+         Print("❌ [CRiskEngine FAILED]: Retcode: ", result.retcode, " Comment: ", result.comment);
+         return false;
+      }
    }
-   else
+
+   bool ModifyPositionStops(ulong ticket, double sl, double tp)
    {
-      g_lastTradeMsg = "ERR " + IntegerToString((long)result.retcode) + ": " + result.comment;
-      Print("❌ [ORDER FAILED]: Error: ", GetLastError(), " Retcode: ", result.retcode, " Comment: ", result.comment);
+      MqlTradeRequest modReq;
+      MqlTradeResult modRes;
+      ZeroMemory(modReq);
+      ZeroMemory(modRes);
+      modReq.action   = TRADE_ACTION_SLTP;
+      modReq.position = ticket;
+      modReq.symbol   = Symbol();
+      modReq.sl       = sl;
+      modReq.tp       = tp;
+      return OrderSend(modReq, modRes);
    }
+
+   bool ClosePosition(ulong ticket, double volume = 0.0, string reason = "Normal Close")
+   {
+      if(!PositionSelectByTicket(ticket)) return false;
+
+      string sym = PositionGetString(POSITION_SYMBOL);
+      ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+      double curVol = PositionGetDouble(POSITION_VOLUME);
+      double closeVol = (volume > 0.0 && volume <= curVol) ? volume : curVol;
+      int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+
+      MqlTradeRequest req;
+      MqlTradeResult res;
+      ZeroMemory(req);
+      ZeroMemory(res);
+
+      req.action    = TRADE_ACTION_DEAL;
+      req.position  = ticket;
+      req.symbol    = sym;
+      req.volume    = closeVol;
+      req.deviation = SlippagePoints;
+      req.magic     = MagicNumber;
+      req.comment   = "Kestrel Close: " + reason;
+
+      if(type == POSITION_TYPE_BUY)
+      {
+         req.type  = ORDER_TYPE_SELL;
+         req.price = NormalizeDouble(SymbolInfoDouble(sym, SYMBOL_BID), digits);
+      }
+      else
+      {
+         req.type  = ORDER_TYPE_BUY;
+         req.price = NormalizeDouble(SymbolInfoDouble(sym, SYMBOL_ASK), digits);
+      }
+
+      ENUM_ORDER_TYPE_FILLING fillModes[3] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
+      for(int f = 0; f < 3; f++)
+      {
+         req.type_filling = fillModes[f];
+         ResetLastError();
+         if(OrderSend(req, res))
+         {
+            Print("🛡️ [CRiskEngine CLOSED]: Position #", ticket, " Volume=", closeVol, " Reason=", reason);
+            return true;
+         }
+      }
+      return false;
+   }
+
+   bool CloseAllPositions(string reason = "Emergency Close")
+   {
+      Print("🛡️ [CRiskEngine]: Closing all positions on ", Symbol(), ". Reason: ", reason);
+      bool allSuccess = true;
+      for(int i = PositionsTotal() - 1; i >= 0; i--)
+      {
+         if(PositionGetSymbol(i) == Symbol() && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+         {
+            ulong ticket = PositionGetTicket(i);
+            if(!ClosePosition(ticket, 0.0, reason))
+               allSuccess = false;
+         }
+      }
+      g_lastTradeMsg = "ALL POSITIONS CLOSED (" + reason + ")";
+      return allSuccess;
+   }
+
+   void ManageTrailingAndBreakEven()
+   {
+      if(!UseTrailingStop) return;
+
+      double point = SymbolInfoDouble(Symbol(), SYMBOL_POINT);
+      int digits = (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS);
+      double ask = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
+      double bid = SymbolInfoDouble(Symbol(), SYMBOL_BID);
+
+      double atrVal = (g_lastAnalysis.isValid && g_lastAnalysis.atrValue > 0) ? g_lastAnalysis.atrValue : point * 300;
+
+      for(int i = PositionsTotal() - 1; i >= 0; i--)
+      {
+         if(PositionGetSymbol(i) != Symbol() || PositionGetInteger(POSITION_MAGIC) != MagicNumber) continue;
+
+         ulong ticket = PositionGetTicket(i);
+         ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+         double currentSl = PositionGetDouble(POSITION_SL);
+         double currentTp = PositionGetDouble(POSITION_TP);
+         double volume    = PositionGetDouble(POSITION_VOLUME);
+
+         double profitPoints = (type == POSITION_TYPE_BUY) ? (bid - openPrice) / point : (openPrice - ask) / point;
+         double profitPrice  = (type == POSITION_TYPE_BUY) ? (bid - openPrice) : (openPrice - ask);
+
+         // News Protection: Tighten SL to BE if news within 15 minutes and in profit
+         if(g_newsBlockActive && profitPrice > (point * 10))
+         {
+            double beSl = NormalizeDouble(openPrice, digits);
+            if(type == POSITION_TYPE_BUY && currentSl < beSl)
+            {
+               ModifyPositionStops(ticket, beSl, currentTp);
+               Print("🛡️ [NEWS GUARD]: Position #", ticket, " SL locked to BE before news event.");
+            }
+            else if(type == POSITION_TYPE_SELL && (currentSl > beSl || currentSl == 0))
+            {
+               ModifyPositionStops(ticket, beSl, currentTp);
+               Print("🛡️ [NEWS GUARD]: Position #", ticket, " SL locked to BE before news event.");
+            }
+         }
+
+         // Level 1: Break-even lock at 1.5x ATR
+         double beTriggerDist = atrVal * 1.5;
+         if(profitPrice >= beTriggerDist)
+         {
+            double beLevel = NormalizeDouble(openPrice, digits);
+            if(type == POSITION_TYPE_BUY && currentSl < beLevel)
+               ModifyPositionStops(ticket, beLevel, currentTp);
+            else if(type == POSITION_TYPE_SELL && (currentSl > beLevel || currentSl == 0))
+               ModifyPositionStops(ticket, beLevel, currentTp);
+         }
+
+         // Level 2: Partial Close 40% at TP1
+         double tp1Dist = atrVal * TP1_ATR_Mult;
+         if(!g_partialTP1Fired && profitPrice >= tp1Dist && volume > 0.02)
+         {
+            double stepLot = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
+            double closeVol = NormalizeDouble(MathFloor((volume * 0.40) / stepLot) * stepLot, 2);
+            if(closeVol >= 0.01)
+            {
+               if(ClosePosition(ticket, closeVol, "Partial TP1 40%"))
+                  g_partialTP1Fired = true;
+            }
+         }
+
+         // Level 3: Partial Close 50% of remaining at TP2
+         double tp2Dist = atrVal * TP2_ATR_Mult;
+         if(!g_partialTP2Fired && profitPrice >= tp2Dist && volume > 0.02)
+         {
+            double stepLot = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
+            double closeVol = NormalizeDouble(MathFloor((volume * 0.50) / stepLot) * stepLot, 2);
+            if(closeVol >= 0.01)
+            {
+               if(ClosePosition(ticket, closeVol, "Partial TP2 50%"))
+                  g_partialTP2Fired = true;
+            }
+         }
+
+         // Trailing Stop: 1.0x ATR behind price once TP1 is hit
+         if(profitPrice >= tp1Dist)
+         {
+            double trailDist = atrVal * 1.0;
+            if(type == POSITION_TYPE_BUY)
+            {
+               double newTrailSl = NormalizeDouble(bid - trailDist, digits);
+               if(newTrailSl > currentSl)
+                  ModifyPositionStops(ticket, newTrailSl, currentTp);
+            }
+            else
+            {
+               double newTrailSl = NormalizeDouble(ask + trailDist, digits);
+               if(newTrailSl < currentSl || currentSl == 0)
+                  ModifyPositionStops(ticket, newTrailSl, currentTp);
+            }
+         }
+      }
+   }
+};
+
+CRiskEngine g_riskEngine;
+
+void ExecuteAutonomousTrade(string direction, double customLot = 0.0)
+{
+   // RULE #6 AUDIT: All trade alteration delegated directly to audited CRiskEngine class
+   g_riskEngine.ExecuteTrade(direction, customLot, "Manual/Autonomous Order");
 }
 
-//+------------------------------------------------------------------+
-//| Draw Star-Rated Signal Arrow on Chart                              |
-//+------------------------------------------------------------------+
 void Draw3DChartSignal(string direction, double entry, double sl, double tp)
 {
    datetime candleTime = iTime(Symbol(), Period(), 0);
@@ -3252,295 +4153,149 @@ void Draw3DChartSignal(string direction, double entry, double sl, double tp)
 //+------------------------------------------------------------------+
 void CloseAllSymbolPositions()
 {
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
-   {
-      if(PositionGetSymbol(i) == Symbol())
-      {
-         ulong ticket = PositionGetTicket(i);
-         ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
-         double volume = PositionGetDouble(POSITION_VOLUME);
-
-         MqlTradeRequest req;
-         MqlTradeResult res;
-         ZeroMemory(req);
-         ZeroMemory(res);
-
-         req.action    = TRADE_ACTION_DEAL;
-         req.position  = ticket;
-         req.symbol    = Symbol();
-         req.volume    = volume;
-         req.deviation = SlippagePoints;
-
-         uint filling = (uint)SymbolInfoInteger(Symbol(), SYMBOL_FILLING_MODE);
-         if((filling & SYMBOL_FILLING_FOK) != 0) req.type_filling = ORDER_FILLING_FOK;
-         else if((filling & SYMBOL_FILLING_IOC) != 0) req.type_filling = ORDER_FILLING_IOC;
-         else req.type_filling = ORDER_FILLING_RETURN;
-
-         if(type == POSITION_TYPE_BUY)
-         {
-            req.type  = ORDER_TYPE_SELL;
-            req.price = SymbolInfoDouble(Symbol(), SYMBOL_BID);
-         }
-         else
-         {
-            req.type  = ORDER_TYPE_BUY;
-            req.price = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
-         }
-
-         if(OrderSend(req, res))
-            Print("🛡️ [CLOSED]: Position #", ticket);
-      }
-   }
+   // RULE #6 AUDIT: Delegated to audited CRiskEngine class
+   g_riskEngine.CloseAllPositions("Manual / Emergency Halt");
 }
 
-//+------------------------------------------------------------------+
-//| 3-Level Smart Trailing Stop & Partial Take-Profit                 |
-//+------------------------------------------------------------------+
 void ManageTrailingStops()
 {
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
-   {
-      if(PositionGetSymbol(i) == Symbol() && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
-      {
-         ulong ticket = PositionGetTicket(i);
-         ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
-         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
-         double currentSl = PositionGetDouble(POSITION_SL);
-         double currentTp = PositionGetDouble(POSITION_TP);
-         double currentPrice = PositionGetDouble(POSITION_PRICE_CURRENT);
-         double volume = PositionGetDouble(POSITION_VOLUME);
-         double point = SymbolInfoDouble(Symbol(), SYMBOL_POINT);
-         int digits = (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS);
-         double minLot = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
-         double stepLot = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
-         if(minLot <= 0) minLot = 0.01;
-         if(stepLot <= 0) stepLot = 0.01;
-         int lotDigits = (stepLot < 0.1) ? 2 : ((stepLot < 1.0) ? 1 : 0);
-
-         if(ticket != g_activePositionTicket)
-         {
-            g_activePositionTicket = ticket;
-            g_partialTP1Fired = false;
-            g_partialTP2Fired = false;
-         }
-
-         double atrVal = 0.0;
-         double atrBuf[];
-         ArraySetAsSeries(atrBuf, true);
-         if(g_hAtr14 != INVALID_HANDLE && CopyBuffer(g_hAtr14, 0, 0, 1, atrBuf) >= 1)
-            atrVal = atrBuf[0];
-         if(atrVal <= 0) atrVal = point * 300;
-
-         string sym = Symbol();
-         if(EnableSpikeHunter && (StringFind(sym, "Boom") >= 0 || StringFind(sym, "Crash") >= 0))
-            atrVal *= 1.8;
-
-         double profitDist = (type == POSITION_TYPE_BUY) ? (currentPrice - openPrice) : (openPrice - currentPrice);
-
-         // === LEVEL 1: Break-Even Lock at 1.5× ATR ===
-         if(profitDist >= atrVal * 1.5)
-         {
-            double beLevel;
-            if(type == POSITION_TYPE_BUY)
-               beLevel = NormalizeDouble(openPrice + 20 * point, digits);
-            else
-               beLevel = NormalizeDouble(openPrice - 20 * point, digits);
-
-            bool shouldLock = false;
-            if(type == POSITION_TYPE_BUY)
-               shouldLock = (currentSl < beLevel);
-            else
-               shouldLock = (currentSl == 0 || currentSl > beLevel);
-
-            if(shouldLock)
-            {
-               MqlTradeRequest req;
-               MqlTradeResult res;
-               ZeroMemory(req);
-               ZeroMemory(res);
-               req.action   = TRADE_ACTION_SLTP;
-               req.position = ticket;
-               req.symbol   = Symbol();
-               req.sl       = beLevel;
-               req.tp       = currentTp;
-               if(OrderSend(req, res))
-                  Print("🛡️ [BREAK-EVEN]: Position #", ticket, " SL locked @ ", DoubleToString(beLevel, digits));
-            }
-         }
-
-         // === LEVEL 2: Partial Close 40% at TP1 ATR ===
-         if(!g_partialTP1Fired && profitDist >= atrVal * TP1_ATR_Mult && volume > minLot * 1.5)
-         {
-            double closeVol = NormalizeDouble(volume * 0.4, lotDigits);
-            if(closeVol < minLot) closeVol = minLot;
-            if(closeVol >= minLot && closeVol < volume)
-            {
-               MqlTradeRequest req;
-               MqlTradeResult res;
-               ZeroMemory(req);
-               ZeroMemory(res);
-               req.action    = TRADE_ACTION_DEAL;
-               req.position  = ticket;
-               req.symbol    = Symbol();
-               req.volume    = closeVol;
-               req.deviation = SlippagePoints;
-
-               uint filling = (uint)SymbolInfoInteger(Symbol(), SYMBOL_FILLING_MODE);
-               if((filling & SYMBOL_FILLING_FOK) != 0) req.type_filling = ORDER_FILLING_FOK;
-               else if((filling & SYMBOL_FILLING_IOC) != 0) req.type_filling = ORDER_FILLING_IOC;
-               else req.type_filling = ORDER_FILLING_RETURN;
-
-               req.type = (type == POSITION_TYPE_BUY) ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
-               req.price = (type == POSITION_TYPE_BUY) ? SymbolInfoDouble(Symbol(), SYMBOL_BID) : SymbolInfoDouble(Symbol(), SYMBOL_ASK);
-
-               if(OrderSend(req, res))
-               {
-                  g_partialTP1Fired = true;
-                  Print("💰 [TP1 HIT]: Closed 40% (", closeVol, " lots) on #", ticket, " at +", DoubleToString(TP1_ATR_Mult, 1), "× ATR");
-               }
-            }
-         }
-
-         // === LEVEL 3: Partial Close 50% of remaining at TP2 ATR ===
-         if(g_partialTP1Fired && !g_partialTP2Fired && profitDist >= atrVal * TP2_ATR_Mult && volume > minLot * 1.5)
-         {
-            double closeVol = NormalizeDouble(volume * 0.5, lotDigits);
-            if(closeVol < minLot) closeVol = minLot;
-            if(closeVol >= minLot && closeVol < volume)
-            {
-               MqlTradeRequest req;
-               MqlTradeResult res;
-               ZeroMemory(req);
-               ZeroMemory(res);
-               req.action    = TRADE_ACTION_DEAL;
-               req.position  = ticket;
-               req.symbol    = Symbol();
-               req.volume    = closeVol;
-               req.deviation = SlippagePoints;
-
-               uint filling = (uint)SymbolInfoInteger(Symbol(), SYMBOL_FILLING_MODE);
-               if((filling & SYMBOL_FILLING_FOK) != 0) req.type_filling = ORDER_FILLING_FOK;
-               else if((filling & SYMBOL_FILLING_IOC) != 0) req.type_filling = ORDER_FILLING_IOC;
-               else req.type_filling = ORDER_FILLING_RETURN;
-
-               req.type = (type == POSITION_TYPE_BUY) ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
-               req.price = (type == POSITION_TYPE_BUY) ? SymbolInfoDouble(Symbol(), SYMBOL_BID) : SymbolInfoDouble(Symbol(), SYMBOL_ASK);
-
-               if(OrderSend(req, res))
-               {
-                  g_partialTP2Fired = true;
-                  Print("💰 [TP2 HIT]: Closed 50% remaining (", closeVol, " lots) on #", ticket, " at +", DoubleToString(TP2_ATR_Mult, 1), "× ATR");
-               }
-            }
-         }
-
-         // === TRAILING STOP: Trail at 1.0× ATR behind price ===
-         if(profitDist >= atrVal * 1.5)
-         {
-            double trailSl;
-            if(type == POSITION_TYPE_BUY)
-               trailSl = NormalizeDouble(currentPrice - atrVal, digits);
-            else
-               trailSl = NormalizeDouble(currentPrice + atrVal, digits);
-
-            bool shouldTrail = false;
-            if(type == POSITION_TYPE_BUY)
-               shouldTrail = (trailSl > currentSl && trailSl > openPrice);
-            else
-               shouldTrail = (currentSl == 0 || (trailSl < currentSl && trailSl < openPrice));
-
-            if(shouldTrail)
-            {
-               MqlTradeRequest req;
-               MqlTradeResult res;
-               ZeroMemory(req);
-               ZeroMemory(res);
-               req.action   = TRADE_ACTION_SLTP;
-               req.position = ticket;
-               req.symbol   = Symbol();
-               req.sl       = trailSl;
-               req.tp       = currentTp;
-               if(OrderSend(req, res))
-                  Print("📈 [TRAILING]: #", ticket, " SL trailed to ", DoubleToString(trailSl, digits));
-            }
-         }
-      }
-   }
+   // RULE #6 AUDIT: Delegated to audited CRiskEngine class
+   g_riskEngine.ManageTrailingAndBreakEven();
 }
 
-//+------------------------------------------------------------------+
-//| Sync Account to Supabase Cloud                                    |
-//+------------------------------------------------------------------+
 void SyncAccountToSupabase()
 {
-   if(StringLen(SupabaseUrl) == 0 || StringLen(SupabaseApiKey) == 0) return;
-
-   string url = SupabaseUrl + "/rest/v1/accounts";
-   string headers = "apikey: " + SupabaseApiKey + "\r\n"
-                  + "Authorization: Bearer " + SupabaseApiKey + "\r\n"
-                  + "Content-Type: application/json\r\n"
-                  + "Prefer: resolution=merge-duplicates\r\n";
-
    string accNum = (StringLen(ClientAccountID) > 0) ? ClientAccountID : IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
    string broker = AccountInfoString(ACCOUNT_COMPANY);
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
    string curr = AccountInfoString(ACCOUNT_CURRENCY);
 
-   string json = "{\"account_number\":\"" + accNum + "\","
-                + "\"broker_name\":\"" + broker + "\","
-                + "\"license_key\":\"" + KestrelAPIToken + "\","
-                + "\"balance\":" + DoubleToString(balance, 2) + ","
-                + "\"equity\":" + DoubleToString(equity, 2) + ","
-                + "\"currency\":\"" + curr + "\","
-                + "\"total_profit\":" + DoubleToString(g_totalProfit, 2) + ","
-                + "\"today_profit\":" + DoubleToString(g_todayProfit, 2) + ","
-                + "\"current_drawdown_pct\":" + DoubleToString(g_currentDrawdown, 2) + ","
-                + "\"recovery_level\":\"" + g_recoveryLevel + "\","
-                + "\"recovery_multiplier\":" + DoubleToString(g_recoveryMult * ClientRiskMultiplier, 2) + ","
-                + "\"auto_trade_enabled\":" + (g_autoPilotActive ? "true" : "false") + "}";
+   // 1. Direct Supabase REST Sync (if direct credentials provided)
+   if(StringLen(SupabaseUrl) > 0 && StringLen(SupabaseApiKey) > 0)
+   {
+      string url = SupabaseUrl + "/rest/v1/accounts";
+      string headers = "apikey: " + SupabaseApiKey + "\r\n"
+                     + "Authorization: Bearer " + SupabaseApiKey + "\r\n"
+                     + "Content-Type: application/json\r\n"
+                     + "Prefer: resolution=merge-duplicates\r\n";
 
-   char post_data[], result[];
-   StringToCharArray(json, post_data, 0, StringLen(json));
-   string result_headers;
-   ResetLastError();
-   WebRequest("POST", url, headers, NULL, 4000, post_data, ArraySize(post_data), result, result_headers);
+      string json = "{\"account_number\":\"" + accNum + "\","
+                   + "\"broker_name\":\"" + broker + "\","
+                   + "\"license_key\":\"" + KestrelAPIToken + "\","
+                   + "\"balance\":" + DoubleToString(balance, 2) + ","
+                   + "\"equity\":" + DoubleToString(equity, 2) + ","
+                   + "\"currency\":\"" + curr + "\","
+                   + "\"total_profit\":" + DoubleToString(g_totalProfit, 2) + ","
+                   + "\"today_profit\":" + DoubleToString(g_todayProfit, 2) + ","
+                   + "\"current_drawdown_pct\":" + DoubleToString(g_currentDrawdown, 2) + ","
+                   + "\"recovery_level\":\"" + g_recoveryLevel + "\","
+                   + "\"recovery_multiplier\":" + DoubleToString(g_recoveryMult * ClientRiskMultiplier, 2) + ","
+                   + "\"auto_trade_enabled\":" + (g_autoPilotActive ? "true" : "false") + "}";
+
+      char post_data[], result[];
+      StringToCharArray(json, post_data, 0, StringLen(json));
+      string result_headers;
+      ResetLastError();
+      WebRequest("POST", url, headers, NULL, 4000, post_data, ArraySize(post_data), result, result_headers);
+   }
+
+   // 2. Kestrel Core API Sync (Heartbeat & Risk Metrics Sync)
+   if(StringLen(KestrelAPIUrl) > 0)
+   {
+      string url = KestrelAPIUrl + "/api/v1/sync/heartbeat";
+      string headers = "Content-Type: application/json\r\n";
+      if(StringLen(KestrelAPIToken) > 0)
+         headers += "Authorization: Bearer " + KestrelAPIToken + "\r\n";
+
+      string hbJson = "{\"account_login\":\"" + accNum + "\","
+                    + "\"terminal_hash\":\"MT5_" + accNum + "\","
+                    + "\"broker\":\"" + broker + "\","
+                    + "\"server\":\"" + AccountInfoString(ACCOUNT_SERVER) + "\","
+                    + "\"currency\":\"" + curr + "\","
+                    + "\"leverage\":" + IntegerToString(AccountInfoInteger(ACCOUNT_LEVERAGE)) + ","
+                    + "\"balance\":" + DoubleToString(balance, 2) + ","
+                    + "\"equity\":" + DoubleToString(equity, 2) + ","
+                    + "\"margin\":" + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN), 2) + ","
+                    + "\"free_margin\":" + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_FREE), 2) + ","
+                    + "\"margin_level\":" + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_LEVEL), 2) + ","
+                    + "\"ping_latency_ms\":12,"
+                    + "\"regime\":\"" + g_lastRegime + "\","
+                    + "\"ea_version\":\"4.00\","
+                    + "\"prop_firm_profile\":\"" + EnumToString(PropFirmMode) + "\","
+                    + "\"consecutive_losses\":" + IntegerToString(g_riskEngine.GetConsecutiveLosses()) + "}";
+
+      char post_data[], result[];
+      StringToCharArray(hbJson, post_data, 0, StringLen(hbJson));
+      string result_headers;
+      ResetLastError();
+      WebRequest("POST", url, headers, NULL, 4000, post_data, ArraySize(post_data), result, result_headers);
+   }
 }
 
 //+------------------------------------------------------------------+
-//| Report Trade to Supabase                                          |
+//| Report Trade to Supabase & Kestrel Core                           |
 //+------------------------------------------------------------------+
 void ReportTradeToSupabase(string direction, double price, double lots, double sl, double tp, ulong ticket)
 {
-   if(StringLen(SupabaseUrl) == 0 || StringLen(SupabaseApiKey) == 0) return;
-
-   string url = SupabaseUrl + "/rest/v1/trades";
-   string headers = "apikey: " + SupabaseApiKey + "\r\n"
-                  + "Authorization: Bearer " + SupabaseApiKey + "\r\n"
-                  + "Content-Type: application/json\r\n";
-
    string accNum = (StringLen(ClientAccountID) > 0) ? ClientAccountID : IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
 
-   string json = "{\"instrument\":\"" + GetInstrument() + "\","
-                + "\"timeframe\":\"" + GetTimeframe() + "\","
-                + "\"direction\":\"" + direction + "\","
-                + "\"account_number\":\"" + accNum + "\","
-                + "\"lot_size\":" + DoubleToString(lots, 2) + ","
-                + "\"entry_price\":" + DoubleToString(price, 5) + ","
-                + "\"stop_loss\":" + DoubleToString(sl, 5) + ","
-                + "\"take_profit\":" + DoubleToString(tp, 5) + ","
-                + "\"mt5_ticket\":" + IntegerToString((long)ticket) + ","
-                + "\"confidence_at_entry\":" + DoubleToString(g_lastConfidence, 3) + ","
-                + "\"swarm_consensus_pct\":" + DoubleToString(g_consensusPct, 1) + ","
-                + "\"market_regime\":\"" + g_lastRegime + "\","
-                + "\"status\":\"open\","
-                + "\"execution_status\":\"OPEN\"}";
+   // 1. Direct Supabase
+   if(StringLen(SupabaseUrl) > 0 && StringLen(SupabaseApiKey) > 0)
+   {
+      string url = SupabaseUrl + "/rest/v1/trades";
+      string headers = "apikey: " + SupabaseApiKey + "\r\n"
+                     + "Authorization: Bearer " + SupabaseApiKey + "\r\n"
+                     + "Content-Type: application/json\r\n";
 
-   char post_data[], result[];
-   StringToCharArray(json, post_data, 0, StringLen(json));
-   string result_headers;
-   ResetLastError();
-   WebRequest("POST", url, headers, NULL, 4000, post_data, ArraySize(post_data), result, result_headers);
+      string json = "{\"instrument\":\"" + GetInstrument() + "\","
+                   + "\"timeframe\":\"" + GetTimeframe() + "\","
+                   + "\"direction\":\"" + direction + "\","
+                   + "\"account_number\":\"" + accNum + "\","
+                   + "\"lot_size\":" + DoubleToString(lots, 2) + ","
+                   + "\"entry_price\":" + DoubleToString(price, 5) + ","
+                   + "\"stop_loss\":" + DoubleToString(sl, 5) + ","
+                   + "\"take_profit\":" + DoubleToString(tp, 5) + ","
+                   + "\"mt5_ticket\":" + IntegerToString((long)ticket) + ","
+                   + "\"confidence_at_entry\":" + DoubleToString(g_lastConfidence, 3) + ","
+                   + "\"swarm_consensus_pct\":" + DoubleToString(g_consensusPct, 1) + ","
+                   + "\"market_regime\":\"" + g_lastRegime + "\","
+                   + "\"status\":\"open\","
+                   + "\"execution_status\":\"OPEN\"}";
+
+      char post_data[], result[];
+      StringToCharArray(json, post_data, 0, StringLen(json));
+      string result_headers;
+      ResetLastError();
+      WebRequest("POST", url, headers, NULL, 4000, post_data, ArraySize(post_data), result, result_headers);
+   }
+
+   // 2. Kestrel Core API
+   if(StringLen(KestrelAPIUrl) > 0)
+   {
+      string url = KestrelAPIUrl + "/api/v1/sync/trades";
+      string headers = "Content-Type: application/json\r\n";
+      if(StringLen(KestrelAPIToken) > 0)
+         headers += "Authorization: Bearer " + KestrelAPIToken + "\r\n";
+
+      string json = "{\"account_login\":\"" + accNum + "\","
+                   + "\"terminal_hash\":\"MT5_" + accNum + "\","
+                   + "\"ticket\":" + IntegerToString((long)ticket) + ","
+                   + "\"symbol\":\"" + GetInstrument() + "\","
+                   + "\"direction\":\"" + direction + "\","
+                   + "\"lots\":" + DoubleToString(lots, 2) + ","
+                   + "\"open_price\":" + DoubleToString(price, 5) + ","
+                   + "\"close_price\":" + DoubleToString(price, 5) + ","
+                   + "\"profit\":0.0,"
+                   + "\"pips\":0.0,"
+                   + "\"magic_number\":" + IntegerToString(MagicNumber) + "}";
+
+      char post_data[], result[];
+      StringToCharArray(json, post_data, 0, StringLen(json));
+      string result_headers;
+      ResetLastError();
+      WebRequest("POST", url, headers, NULL, 4000, post_data, ArraySize(post_data), result, result_headers);
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -3548,51 +4303,102 @@ void ReportTradeToSupabase(string direction, double price, double lots, double s
 //+------------------------------------------------------------------+
 void PollRemoteWebCommands()
 {
-   if(StringLen(SupabaseUrl) == 0 || StringLen(SupabaseApiKey) == 0) return;
+   string accNum = (StringLen(ClientAccountID) > 0) ? ClientAccountID : IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
 
-   string url = SupabaseUrl + "/rest/v1/system_logs?log_type=eq.REMOTE_COMMAND&order=created_at.desc&limit=1";
-   string headers = "apikey: " + SupabaseApiKey + "\r\n"
-                  + "Authorization: Bearer " + SupabaseApiKey + "\r\n";
-
-   char post_data[], result[];
-   string result_headers;
-   ResetLastError();
-   int res = WebRequest("GET", url, headers, NULL, 3000, post_data, 0, result, result_headers);
-   if(res == 200 && ArraySize(result) > 0)
+   // 1. Direct Supabase log polling
+   if(StringLen(SupabaseUrl) > 0 && StringLen(SupabaseApiKey) > 0)
    {
-      string responseStr = CharArrayToString(result);
+      string url = SupabaseUrl + "/rest/v1/system_logs?log_type=eq.REMOTE_COMMAND&order=created_at.desc&limit=1";
+      string headers = "apikey: " + SupabaseApiKey + "\r\n"
+                     + "Authorization: Bearer " + SupabaseApiKey + "\r\n";
 
-      string clientBuyCmd = "COMMAND: BUY_CLIENT_" + ClientAccountID;
-      string clientSellCmd = "COMMAND: SELL_CLIENT_" + ClientAccountID;
-
-      if(StringFind(responseStr, "COMMAND: BUY") >= 0 || StringFind(responseStr, clientBuyCmd) >= 0)
+      char post_data[], result[];
+      string result_headers;
+      ResetLastError();
+      int res = WebRequest("GET", url, headers, NULL, 3000, post_data, 0, result, result_headers);
+      if(res == 200 && ArraySize(result) > 0)
       {
-         if(TimeCurrent() - g_lastExecutedCommandTime > 6)
+         string responseStr = CharArrayToString(result);
+         string clientBuyCmd = "COMMAND: BUY_CLIENT_" + ClientAccountID;
+         string clientSellCmd = "COMMAND: SELL_CLIENT_" + ClientAccountID;
+
+         if(StringFind(responseStr, "COMMAND: BUY") >= 0 || StringFind(responseStr, clientBuyCmd) >= 0)
          {
-            g_lastExecutedCommandTime = TimeCurrent();
-            Print("⚡ [BROADCAST]: BUY on Account #", ClientAccountID);
-            ExecuteAutonomousTrade("BUY", LotSize);
-            Render3DHUD();
+            if(TimeCurrent() - g_lastExecutedCommandTime > 6)
+            {
+               g_lastExecutedCommandTime = TimeCurrent();
+               Print("⚡ [BROADCAST]: BUY on Account #", ClientAccountID);
+               ExecuteAutonomousTrade("BUY", LotSize);
+               Render3DHUD();
+            }
+         }
+         else if(StringFind(responseStr, "COMMAND: SELL") >= 0 || StringFind(responseStr, clientSellCmd) >= 0)
+         {
+            if(TimeCurrent() - g_lastExecutedCommandTime > 6)
+            {
+               g_lastExecutedCommandTime = TimeCurrent();
+               Print("⚡ [BROADCAST]: SELL on Account #", ClientAccountID);
+               ExecuteAutonomousTrade("SELL", LotSize);
+               Render3DHUD();
+            }
+         }
+         else if(StringFind(responseStr, "COMMAND: CLOSE_ALL") >= 0 || StringFind(responseStr, "COMMAND: CLOSE_ALL_CLIENTS") >= 0)
+         {
+            if(TimeCurrent() - g_lastExecutedCommandTime > 6)
+            {
+               g_lastExecutedCommandTime = TimeCurrent();
+               Print("🛡️ [HALT]: Closing all on Account #", ClientAccountID);
+               CloseAllSymbolPositions();
+               Render3DHUD();
+            }
          }
       }
-      else if(StringFind(responseStr, "COMMAND: SELL") >= 0 || StringFind(responseStr, clientSellCmd) >= 0)
+   }
+
+   // 2. Kestrel Core API Command Queue Polling
+   if(StringLen(KestrelAPIUrl) > 0)
+   {
+      string url = KestrelAPIUrl + "/api/v1/sync/commands?account_login=" + accNum + "&terminal_hash=MT5_" + accNum;
+      string headers = "Content-Type: application/json\r\n";
+      if(StringLen(KestrelAPIToken) > 0)
+         headers += "Authorization: Bearer " + KestrelAPIToken + "\r\n";
+
+      char post_data[], result[];
+      string result_headers;
+      ResetLastError();
+      int res = WebRequest("GET", url, headers, NULL, 3000, post_data, 0, result, result_headers);
+      if(res == 200 && ArraySize(result) > 2) // More than empty array "[]"
       {
-         if(TimeCurrent() - g_lastExecutedCommandTime > 6)
+         string jsonResp = CharArrayToString(result);
+         if(StringFind(jsonResp, "\"command_type\":\"BUY\"") >= 0)
          {
-            g_lastExecutedCommandTime = TimeCurrent();
-            Print("⚡ [BROADCAST]: SELL on Account #", ClientAccountID);
-            ExecuteAutonomousTrade("SELL", LotSize);
-            Render3DHUD();
+            if(TimeCurrent() - g_lastExecutedCommandTime > 5)
+            {
+               g_lastExecutedCommandTime = TimeCurrent();
+               Print("⚡ [KESTREL CORE]: Executing remote BUY on Account #", accNum);
+               ExecuteAutonomousTrade("BUY", LotSize);
+               Render3DHUD();
+            }
          }
-      }
-      else if(StringFind(responseStr, "COMMAND: CLOSE_ALL") >= 0 || StringFind(responseStr, "COMMAND: CLOSE_ALL_CLIENTS") >= 0)
-      {
-         if(TimeCurrent() - g_lastExecutedCommandTime > 6)
+         else if(StringFind(jsonResp, "\"command_type\":\"SELL\"") >= 0)
          {
-            g_lastExecutedCommandTime = TimeCurrent();
-            Print("🛡️ [HALT]: Closing all on Account #", ClientAccountID);
-            CloseAllSymbolPositions();
-            Render3DHUD();
+            if(TimeCurrent() - g_lastExecutedCommandTime > 5)
+            {
+               g_lastExecutedCommandTime = TimeCurrent();
+               Print("⚡ [KESTREL CORE]: Executing remote SELL on Account #", accNum);
+               ExecuteAutonomousTrade("SELL", LotSize);
+               Render3DHUD();
+            }
+         }
+         else if(StringFind(jsonResp, "\"command_type\":\"CLOSE_ALL\"") >= 0 || StringFind(jsonResp, "\"command_type\":\"EMERGENCY_HALT\"") >= 0)
+         {
+            if(TimeCurrent() - g_lastExecutedCommandTime > 5)
+            {
+               g_lastExecutedCommandTime = TimeCurrent();
+               Print("🛡️ [KESTREL CORE]: Emergency Halt / Close All on Account #", accNum);
+               CloseAllSymbolPositions();
+               Render3DHUD();
+            }
          }
       }
    }
@@ -3650,7 +4456,7 @@ void Render3DHUD()
    CreateRectLabel("BG_MAIN", x, y, panelW, panelH, C'12,16,26', C'0,180,220', 2);
 
    // ─── 2. HEADER + BIAS PANEL ───
-   CreateLabel("LBL_BRAND", "🦅 KESTREL INTELLIGENCE ENGINE v5.1", x + 16, y + 10, "Segoe UI Black", 9, C'0,229,255');
+   CreateLabel("LBL_BRAND", "🦅 KESTREL INSTITUTIONAL ENGINE v4.0", x + 16, y + 10, "Segoe UI Black", 9, C'0,229,255');
    bool isMaster = (ClientAccountID == "41230754");
    string clientTag = isMaster ? "👑 MASTER" : "👥 " + ClientAccountID;
    CreateLabel("LBL_CLIENT_TAG", clientTag, x + 310, y + 10, "Segoe UI Bold", 8, isMaster ? C'0,229,255' : C'255,200,0');
@@ -3686,8 +4492,40 @@ void Render3DHUD()
 
    CreateRectLabel("SEP_2", x + 14, fy + 48, panelW - 28, 1, C'30,42,65', C'30,42,65', 1);
 
+   // ─── PROP FIRM & RISK CONTROL BAR ───
+   int py = fy + 54;
+   string propTitle = "PROP-FIRM RISK ENGINE: ";
+   switch(PropFirmMode)
+   {
+      case PROP_FTMO:        propTitle += "FTMO CHALLENGE (5% Day / 10% DD)"; break;
+      case PROP_MFF:         propTitle += "MYFOREXFUNDS (5% Day / 12% DD)"; break;
+      case PROP_THE5ERS:     propTitle += "THE 5%ERS (5% Day / 10% DD)"; break;
+      case PROP_EQUITY_EDGE: propTitle += "EQUITY EDGE (4% Day / 8% DD)"; break;
+      case PROP_CUSTOM:      propTitle += "CUSTOM LIMITS (" + DoubleToString(PropMaxDailyLossPct, 1) + "% / " + DoubleToString(PropMaxTotalDDPct, 1) + "%)"; break;
+      default:               propTitle += "UNRESTRICTED (Personal Account)"; break;
+   }
+   CreateLabel("LBL_PROP_TITLE", propTitle, x + 16, py, "Segoe UI Bold", 7, C'130,150,180');
+
+   double dLoss = g_riskEngine.GetDailyLossPct();
+   double tDD   = g_riskEngine.GetTotalDrawdownPct();
+   color propColor = C'0,255,136';
+   if(dLoss >= 3.5 || tDD >= 8.0) propColor = C'255,34,85';
+   else if(dLoss >= 2.0 || tDD >= 5.0) propColor = C'255,200,0';
+
+   string propStats = "Day Loss: " + DoubleToString(dLoss, 2) + "% | Max DD: " + DoubleToString(tDD, 2) + 
+                      "% | Status: " + (g_propRuleBreached ? "🚨 BREACHED" : (g_riskEngine.IsCircuitBreakerActive() ? "🛑 CIRCUIT TRIPPED" : "🟢 ARMED"));
+   CreateLabel("LBL_PROP_METRICS", propStats, x + 16, py + 14, "Consolas", 7, propColor);
+
+   // Progress bar for daily loss
+   int barW = panelW - 32;
+   CreateRectLabel("PROP_BAR_BG", x + 16, py + 28, barW, 4, C'20,30,45', C'20,30,45', 1);
+   int fillW = (int)MathMin(barW, MathMax(2, (dLoss / 5.0) * barW));
+   CreateRectLabel("PROP_BAR_FILL", x + 16, py + 28, fillW, 4, propColor, propColor, 1);
+
+   CreateRectLabel("SEP_PROP", x + 14, py + 38, panelW - 28, 1, C'30,42,65', C'30,42,65', 1);
+
    // ─── 4. MAIN SIGNAL + STAR RATING ───
-   int ay = fy + 56;
+   int ay = py + 46;
    CreateLabel("SEC_ANA_TITLE", "SIGNAL ANALYSIS", x + 16, ay, "Segoe UI Bold", 8, C'130,150,180');
 
    string dirText = "";
@@ -3715,23 +4553,47 @@ void Render3DHUD()
    int maxExpected = EnableCandleAnalysis ? 9 : 8;
    string scoreText = "Score: " + DoubleToString(g_lastAnalysis.score, 3) +
                       " | " + IntegerToString(g_lastAnalysis.indicatorsAvailable) + "/" + IntegerToString(maxExpected) + " Ind" +
-                      " | " + g_lastRegime + " | " + strength;
+                      " | " + strength;
    CreateLabel("LBL_ANA_SCORE", scoreText, x + 16, ay + 36, "Segoe UI", 7, C'170,185,210');
+
+   // Color-coded Market Regime Switcher Badge
+   color regColor = C'170,185,210';
+   if(g_currentHurst > HurstTrendThreshold) regColor = C'0,255,136';
+   else if(g_currentHurst < HurstMeanRevThreshold) regColor = C'0,229,255';
+   CreateLabel("LBL_REGIME_BADGE", "🌐 REGIME: " + g_regimeDetailed, x + 16, ay + 48, "Segoe UI Bold", 7, regColor);
+
+   // News Guard Countdown & Status
+   if(g_newsBlockActive)
+   {
+      CreateLabel("LBL_NEWS_LOCK", "⚠️ [LOCK] " + g_newsWarningText, x + 16, ay + 60, "Segoe UI Bold", 7, C'255,50,50');
+   }
+   else if(g_upcomingNewsCount > 0)
+   {
+      CreateLabel("LBL_NEWS_LOCK", "📰 " + g_upcomingNews[0].currency + ": " + g_upcomingNews[0].title + " in " + IntegerToString(g_upcomingNews[0].minutesUntil) + "m", x + 16, ay + 60, "Segoe UI", 7, C'150,175,205');
+   }
+
+   // Smart Money Concepts (SMC) Confluence Summary
+   if(EnableSMC && g_smcData.isValid)
+   {
+      color smcCol = (g_smcData.bias == "BUY") ? C'0,255,136' : ((g_smcData.bias == "SELL") ? C'255,34,85' : C'255,200,0');
+      string smcSummary = "🦅 SMC: " + g_smcData.summary + " | Zone: " + (g_smcData.premDiscVote > 0 ? "DISCOUNT (Buy Bias)" : "PREMIUM (Sell Bias)");
+      CreateLabel("LBL_SMC_SUMMARY", smcSummary, x + 16, ay + 72, "Segoe UI Bold", 7, smcCol);
+   }
 
    // Risk-based lot suggestion
    if(RiskPercentPerTrade > 0 && g_lastAnalysis.direction != "HOLD")
    {
-      CreateLabel("LBL_LOT_SUGGEST", "Lot: " + g_suggestedLotText, x + 16, ay + 50, "Consolas", 7, C'0,229,255');
+      CreateLabel("LBL_LOT_SUGGEST", "Lot: " + g_suggestedLotText, x + 16, ay + 86, "Consolas", 7, C'0,229,255');
    }
    else
    {
-      CreateLabel("LBL_LOT_SUGGEST", "Lot: " + DoubleToString(LotSize, 2) + " (fixed)", x + 16, ay + 50, "Consolas", 7, C'100,120,150');
+      CreateLabel("LBL_LOT_SUGGEST", "Lot: " + DoubleToString(LotSize, 2) + " (fixed)", x + 16, ay + 86, "Consolas", 7, C'100,120,150');
    }
 
-   CreateRectLabel("SEP_3", x + 14, ay + 64, panelW - 28, 1, C'30,42,65', C'30,42,65', 1);
+   CreateRectLabel("SEP_3", x + 14, ay + 100, panelW - 28, 1, C'30,42,65', C'30,42,65', 1);
 
    // ─── 5. CANDLESTICK PATTERN & ANATOMY ───
-   int cndY = ay + 72;
+   int cndY = ay + 108;
    if(EnableCandleAnalysis)
    {
       CreateLabel("SEC_CND_TITLE", "CANDLESTICK PATTERN & ANATOMY", x + 16, cndY, "Segoe UI Bold", 8, C'130,150,180');

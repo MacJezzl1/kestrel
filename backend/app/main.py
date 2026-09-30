@@ -3,11 +3,31 @@ Kestrel Core — FastAPI Application Entry Point
 Main application with CORS, router registration, and lifecycle management.
 """
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import init_db, close_db
-from app.routers import auth, signals, trades, dashboard, vision, security, payments, clients, market, autopilot, orders
+from app.routers import auth, signals, trades, dashboard, vision, security, payments, clients, market, autopilot, orders, license, calendar, mt5_sync, ws_sync, ensemble, notifications, copier, analytics, metrics
+from app.routers.metrics import increment_metric
+from app.core.rate_limiter import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+
+# Sentry SDK Error Tracking (Safe initialization)
+if settings.SENTRY_DSN:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=settings.SENTRY_DSN,
+            traces_sample_rate=0.2,
+            profiles_sample_rate=0.1,
+            environment=settings.APP_ENV,
+            release=f"kestrel-core@{settings.APP_VERSION}"
+        )
+        print("[Kestrel] 🔭 Sentry APM & error tracing initialized")
+    except Exception as e:
+        print(f"[Kestrel] ⚠️ Sentry init skipped: {e}")
+
 
 
 
@@ -53,8 +73,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# SlowAPI Rate Limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Observability Middleware: Tracks total HTTP request count
+@app.middleware("http")
+async def track_metrics_middleware(request: Request, call_next):
+    increment_metric("http_requests_total", 1)
+    response = await call_next(request)
+    return response
+
 # Register routers
 app.include_router(auth.router)
+app.include_router(license.router)
 app.include_router(signals.router)
 app.include_router(trades.router)
 app.include_router(dashboard.router)
@@ -65,6 +97,16 @@ app.include_router(clients.router)
 app.include_router(market.router)
 app.include_router(autopilot.router)
 app.include_router(orders.router)
+app.include_router(calendar.router)
+app.include_router(mt5_sync.router)
+app.include_router(ws_sync.router)
+app.include_router(ensemble.router)
+app.include_router(notifications.router)
+app.include_router(copier.router)
+app.include_router(analytics.router)
+app.include_router(metrics.router)
+
+
 
 
 
